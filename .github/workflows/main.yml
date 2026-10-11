@@ -21,7 +21,7 @@ jobs:
           pip install pyinstaller
           
       - name: Build EXE
-        run: pyinstaller --onefile --windowed --add-data "logo.png;." --add-data "Determinationmonoruslyajk.ttf;." main.py
+        run: pyinstaller --onefile --windowed --add-data "logo.png;." --add-data "determinationmonorusbylyajk.otf;." main.py
         
       - name: Upload EXE
         uses: actions/upload-artifact@v4
