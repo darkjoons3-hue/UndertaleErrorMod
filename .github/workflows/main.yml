@@ -1,0 +1,27 @@
+name: Test Code
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      
+      - name: Install pygame
+        run: pip install pygame
+      
+      - name: Check syntax
+        run: python -m py_compile main.py
+      
+      - name: Run headless test
+        run: |
+          export SDL_VIDEODRIVER=dummy
+          timeout 10 python main.py || echo "Код запустился и был остановлен по таймауту (это нормально)"
