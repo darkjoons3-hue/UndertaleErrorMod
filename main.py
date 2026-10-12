@@ -1,6 +1,7 @@
 import pygame
 import sys
 import os
+import time
 
 pygame.init()
 pygame.mixer.init()
@@ -12,8 +13,6 @@ fullscreen = False
 show_fps = False
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("UndertaleErrorMod")
-
-# Прячем стандартный курсор мыши полностью
 pygame.mouse.set_visible(False)
 
 BLACK = (0, 0, 0)
@@ -25,7 +24,6 @@ GOLD = (255, 215, 0)
 sound_enabled = True
 music_enabled = True
 
-# --- Путь к папке с игрой ---
 if getattr(sys, 'frozen', False):
     app_dir = os.path.dirname(sys.executable)
 else:
@@ -47,7 +45,6 @@ if os.path.exists(RESET_FLAG):
     except:
         pass
 
-# --- Загрузка изображений ---
 def load_image(path, size=None):
     try:
         img = pygame.image.load(path)
@@ -60,6 +57,7 @@ def load_image(path, size=None):
         return surf
 
 logo = load_image('logo.png', (400, 200))
+history_img = load_image('history.png', (500, 370))
 
 try:
     textures = pygame.image.load('textures.png')
@@ -74,8 +72,8 @@ except:
 cx = WIDTH // 2
 cy = HEIGHT // 2
 logo_rect = logo.get_rect(center=(cx, cy - 60))
+history_rect = history_img.get_rect(center=(cx, cy))
 
-# --- Шрифты ---
 try:
     font_path = 'determinationmonorusbylyajk.otf'
     font = pygame.font.Font(font_path, 26)
@@ -86,7 +84,6 @@ except:
     small_font = pygame.font.Font(None, 22)
     big_font = pygame.font.Font(None, 40)
 
-# --- Звуки ---
 def load_sound(path):
     try:
         return pygame.mixer.Sound(path)
@@ -96,6 +93,8 @@ def load_sound(path):
 logo_sound = load_sound('logo_sound.mp3')
 logo_sound2 = load_sound('logo_sound2.mp3')
 select_sound = load_sound('undertale-select-sound.mp3')
+history_sound = load_sound('undertale-history.mp3')
+bells_sound = load_sound('undertale-bells.mp3')
 
 def play_select():
     if select_sound and sound_enabled:
@@ -115,10 +114,10 @@ def stop_music():
     except:
         pass
 
-# --- Состояния ---
 STATE_LOGO = 0
 STATE_MENU = 1
 STATE_OPTIONS = 2
+STATE_HISTORY = 3
 state = STATE_LOGO
 
 alpha = 0
@@ -143,6 +142,11 @@ player_time = "666:66"
 status_text = "КОНЕЦ"
 
 footer_text = "undertaleErrorMod:Darkjoons, Smile103 year 2026"
+
+# --- Таймеры истории ---
+history_start_ms = 0
+history_music_started = False
+bells_started = False
 
 def draw_heart(surf, x, y, size, color=RED):
     r = size // 4
@@ -200,31 +204,34 @@ while running:
             
             # ===== МЕНЮ =====
             elif state == STATE_MENU:
-                # Стрелка влево
+                # Стрелки (без звука!)
                 if event.key == pygame.K_LEFT:
                     if selected == 1:
-                        play_select(); selected = 0; last_top = 0
+                        selected = 0; last_top = 0
                     elif selected == 2:
-                        play_select(); selected = last_top
-                # Стрелка вправо
+                        selected = last_top
                 if event.key == pygame.K_RIGHT:
                     if selected == 0:
-                        play_select(); selected = 1; last_top = 1
+                        selected = 1; last_top = 1
                     elif selected == 2:
-                        play_select(); selected = last_top
-                # Стрелка вверх
+                        selected = last_top
                 if event.key == pygame.K_UP:
                     if selected == 2:
-                        play_select(); selected = last_top
-                # Стрелка вниз
+                        selected = last_top
                 if event.key == pygame.K_DOWN:
                     if selected == 0 or selected == 1:
-                        play_select(); selected = 2
-                # Подтвердить
+                        selected = 2
+                
+                # Подтвердить (со звуком)
                 if event.key == pygame.K_z or event.key == pygame.K_RETURN:
                     play_select()
                     if selected == 0:
-                        print("Продолжить игру")
+                        # Запуск истории
+                        state = STATE_HISTORY
+                        history_start_ms = pygame.time.get_ticks()
+                        history_music_started = False
+                        bells_started = False
+                        stop_music()
                     elif selected == 1:
                         try:
                             with open(RESET_FLAG, 'w') as f:
@@ -235,19 +242,17 @@ while running:
                     elif selected == 2:
                         state = STATE_OPTIONS
                         option_selected = 0
-                # Выход
+                
                 if event.key == pygame.K_x or event.key == pygame.K_ESCAPE:
                     running = False
             
             # ===== НАСТРОЙКИ =====
             elif state == STATE_OPTIONS:
                 if event.key == pygame.K_UP:
-                    play_select()
                     option_selected -= 1
                     if option_selected < 0:
                         option_selected = len(option_items) - 1
                 if event.key == pygame.K_DOWN:
-                    play_select()
                     option_selected += 1
                     if option_selected >= len(option_items):
                         option_selected = 0
@@ -326,7 +331,6 @@ while running:
         status = font.render(status_text, True, WHITE)
         screen.blit(status, (150, 210))
         
-        # --- ПРОДОЛЖИТЬ (слева сверху) ---
         color1 = GOLD if selected == 0 else WHITE
         text1 = font.render(menu_items[0], True, color1)
         rect1 = text1.get_rect(topleft=(130, 280))
@@ -334,7 +338,6 @@ while running:
         if selected == 0:
             draw_heart(screen, 100, 290, 30)
         
-        # --- ИСТИННЫЙ СБРОС (справа сверху) ---
         color2 = GOLD if selected == 1 else WHITE
         text2 = font.render(menu_items[1], True, color2)
         rect2 = text2.get_rect(topleft=(400, 280))
@@ -342,7 +345,6 @@ while running:
         if selected == 1:
             draw_heart(screen, 370, 290, 30)
         
-        # --- ОПЦИИ (по центру ниже) ---
         color3 = GOLD if selected == 2 else WHITE
         text3 = font.render(menu_items[2], True, color3)
         rect3 = text3.get_rect(center=(cx, 345))
@@ -368,19 +370,16 @@ while running:
         for i in range(len(option_items)):
             if i == 0:
                 val = "ВКЛ" if fullscreen else "ВЫКЛ"
-                label = f"{option_items[i]}: {val}"
             elif i == 1:
                 val = "ВКЛ" if sound_enabled else "ВЫКЛ"
-                label = f"{option_items[i]}: {val}"
             elif i == 2:
                 val = "ВКЛ" if music_enabled else "ВЫКЛ"
-                label = f"{option_items[i]}: {val}"
             elif i == 3:
                 val = "ВКЛ" if show_fps else "ВЫКЛ"
-                label = f"{option_items[i]}: {val}"
             else:
-                label = option_items[i]
+                val = None
             
+            label = f"{option_items[i]}: {val}" if val else option_items[i]
             color = GOLD if i == option_selected else WHITE
             text = font.render(label, True, color)
             ty = start_y + i * spacing
@@ -393,6 +392,42 @@ while running:
         hint = small_font.render("Стрелки - выбор, Z/ENTER - изменить, X/ESC - назад", True, WHITE)
         hr = hint.get_rect(center=(cx, HEIGHT - 30))
         screen.blit(hint, hr)
+    
+    # ===== ИСТОРИЯ =====
+    elif state == STATE_HISTORY:
+        elapsed = (pygame.time.get_ticks() - history_start_ms) / 1000.0
+        
+        # Фаза 1: 0-3 сек — чёрный экран
+        if elapsed < 3.0:
+            pass  # ничего не рисуем, экран чёрный
+        
+        # Фаза 2: 3-21 сек — мигание картинкой
+        elif elapsed < 21.0:
+            # Запускаем музыку один раз
+            if not history_music_started:
+                if history_sound and sound_enabled:
+                    history_sound.play()
+                history_music_started = True
+            
+            # Определяем, показывать ли картинку
+            # Сегменты: 0-3 показать, 3-6 скрыть, 6-9 показать, 9-12 скрыть,
+            #           12-15 показать, 15-18 скрыть
+            local = elapsed - 3.0
+            segment = int(local // 3)
+            if segment % 2 == 0:
+                # Показать
+                screen.blit(history_img, history_rect)
+        
+        # Фаза 3: 21-28 сек — чёрный экран + колокола
+        elif elapsed < 28.0:
+            if not bells_started:
+                if bells_sound and sound_enabled:
+                    bells_sound.play()
+                bells_started = True
+        
+        # Фаза 4: конец — пока оставляем чёрным (следующий этап)
+        else:
+            pass
     
     # ===== FPS =====
     if show_fps:
