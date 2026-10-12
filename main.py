@@ -1,7 +1,6 @@
 import pygame
 import sys
 import os
-import time
 
 pygame.init()
 pygame.mixer.init()
@@ -93,17 +92,16 @@ def load_sound(path):
 logo_sound = load_sound('logo_sound.mp3')
 logo_sound2 = load_sound('logo_sound2.mp3')
 select_sound = load_sound('undertale-select-sound.mp3')
-history_sound = load_sound('undertale-history.mp3')
-bells_sound = load_sound('undertale-bells.mp3')
 
 def play_select():
     if select_sound and sound_enabled:
         select_sound.play()
 
-def play_music(path):
+def play_music(path, loops=-1):
+    """Запускает фоновую музыку. loops=-1 — зациклено, 0 — один раз."""
     try:
         pygame.mixer.music.load(path)
-        pygame.mixer.music.play(-1)
+        pygame.mixer.music.play(loops)
         return True
     except:
         return False
@@ -111,6 +109,17 @@ def play_music(path):
 def stop_music():
     try:
         pygame.mixer.music.stop()
+    except:
+        pass
+
+def stop_all_sounds():
+    """Останавливает ВСЕ звуки: и музыку, и эффекты."""
+    try:
+        pygame.mixer.music.stop()
+    except:
+        pass
+    try:
+        pygame.mixer.stop()
     except:
         pass
 
@@ -204,7 +213,6 @@ while running:
             
             # ===== МЕНЮ =====
             elif state == STATE_MENU:
-                # Стрелки (без звука!)
                 if event.key == pygame.K_LEFT:
                     if selected == 1:
                         selected = 0; last_top = 0
@@ -222,16 +230,15 @@ while running:
                     if selected == 0 or selected == 1:
                         selected = 2
                 
-                # Подтвердить (со звуком)
                 if event.key == pygame.K_z or event.key == pygame.K_RETURN:
                     play_select()
                     if selected == 0:
-                        # Запуск истории
+                        # Останавливаем ВСЮ музыку перед историей
+                        stop_all_sounds()
                         state = STATE_HISTORY
                         history_start_ms = pygame.time.get_ticks()
                         history_music_started = False
                         bells_started = False
-                        stop_music()
                     elif selected == 1:
                         try:
                             with open(RESET_FLAG, 'w') as f:
@@ -282,8 +289,14 @@ while running:
             if errmod_alpha >= 255:
                 errmod_alpha = 255
                 if not logo_sound2_played:
-                    if logo_sound2 and sound_enabled:
-                        logo_sound2.play()
+                    # Останавливаем первый звук перед запуском второго
+                    if sound_enabled:
+                        try:
+                            pygame.mixer.stop()
+                        except:
+                            pass
+                        if logo_sound2:
+                            logo_sound2.play()
                     logo_sound2_played = True
         else:
             press_timer += 1
@@ -399,33 +412,29 @@ while running:
         
         # Фаза 1: 0-3 сек — чёрный экран
         if elapsed < 3.0:
-            pass  # ничего не рисуем, экран чёрный
+            pass
         
         # Фаза 2: 3-21 сек — мигание картинкой
         elif elapsed < 21.0:
-            # Запускаем музыку один раз
             if not history_music_started:
-                if history_sound and sound_enabled:
-                    history_sound.play()
+                stop_all_sounds()
+                if music_enabled:
+                    play_music('undertale-history.mp3', loops=0)
                 history_music_started = True
             
-            # Определяем, показывать ли картинку
-            # Сегменты: 0-3 показать, 3-6 скрыть, 6-9 показать, 9-12 скрыть,
-            #           12-15 показать, 15-18 скрыть
             local = elapsed - 3.0
             segment = int(local // 3)
             if segment % 2 == 0:
-                # Показать
                 screen.blit(history_img, history_rect)
         
-        # Фаза 3: 21-28 сек — чёрный экран + колокола
+        # Фаза 3: 21-28 сек — колокола
         elif elapsed < 28.0:
             if not bells_started:
-                if bells_sound and sound_enabled:
-                    bells_sound.play()
+                stop_all_sounds()
+                if music_enabled:
+                    play_music('undertale-bells.mp3', loops=0)
                 bells_started = True
         
-        # Фаза 4: конец — пока оставляем чёрным (следующий этап)
         else:
             pass
     
