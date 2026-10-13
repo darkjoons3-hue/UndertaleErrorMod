@@ -57,6 +57,7 @@ def load_image(path, size=None):
 
 logo = load_image('logo.png', (400, 200))
 history_img = load_image('history.png', (500, 370))
+sans_img = load_image('sans-error.png', (320, 320))
 
 try:
     textures = pygame.image.load('textures.png')
@@ -68,10 +69,23 @@ except:
     blob_img = pygame.Surface((170, 70))
     blob_img.fill(RED)
 
+# --- Окно диалога: верхний левый из спрайт-листа ---
+try:
+    dialogs_sheet = pygame.image.load('undertale-dialogs.png')
+    dialog_box_small = dialogs_sheet.subsurface(pygame.Rect(15, 15, 105, 75))
+    dialog_box = pygame.transform.scale(dialog_box_small, (580, 130))
+except Exception as e:
+    print(f"Ошибка окна диалога: {e}")
+    dialog_box = pygame.Surface((580, 130))
+    dialog_box.fill(BLACK)
+    pygame.draw.rect(dialog_box, WHITE, (0, 0, 580, 130), 3)
+
 cx = WIDTH // 2
 cy = HEIGHT // 2
 logo_rect = logo.get_rect(center=(cx, cy - 60))
 history_rect = history_img.get_rect(center=(cx, cy))
+sans_rect = sans_img.get_rect(center=(cx, 190))
+dialog_rect = dialog_box.get_rect(center=(cx, 400))
 
 try:
     font_path = 'determinationmonorusbylyajk.otf'
@@ -83,6 +97,11 @@ except:
     small_font = pygame.font.Font(None, 22)
     big_font = pygame.font.Font(None, 40)
 
+try:
+    sans_font = pygame.font.Font('ComicSans.ttf', 22)
+except:
+    sans_font = pygame.font.Font(None, 24)
+
 def load_sound(path):
     try:
         return pygame.mixer.Sound(path)
@@ -92,13 +111,13 @@ def load_sound(path):
 logo_sound = load_sound('logo_sound.mp3')
 logo_sound2 = load_sound('logo_sound2.mp3')
 select_sound = load_sound('undertale-select-sound.mp3')
+sans_dialog_sound = load_sound('sans-dialogs.mp3')
 
 def play_select():
     if select_sound and sound_enabled:
         select_sound.play()
 
 def play_music(path, loops=-1):
-    """Запускает фоновую музыку. loops=-1 — зациклено, 0 — один раз."""
     try:
         pygame.mixer.music.load(path)
         pygame.mixer.music.play(loops)
@@ -113,7 +132,6 @@ def stop_music():
         pass
 
 def stop_all_sounds():
-    """Останавливает ВСЕ звуки: и музыку, и эффекты."""
     try:
         pygame.mixer.music.stop()
     except:
@@ -127,6 +145,7 @@ STATE_LOGO = 0
 STATE_MENU = 1
 STATE_OPTIONS = 2
 STATE_HISTORY = 3
+STATE_SANS = 4
 state = STATE_LOGO
 
 alpha = 0
@@ -152,10 +171,24 @@ status_text = "КОНЕЦ"
 
 footer_text = "undertaleErrorMod:Darkjoons, Smile103 year 2026"
 
-# --- Таймеры истории ---
 history_start_ms = 0
 history_music_started = False
 bells_started = False
+
+# Диалоги Санса (текст, скорость сек/буква, цвет)
+SANS_LINES = [
+    ("Вижу в тебе много зла", 0.06, WHITE),
+    ("Чувак тебе надо расслабится, ведь тебе сейчас предстоит выжить в вечных муках", 0.028, WHITE),
+    ("ДОБРО ПОЖАЛОВАТЬ В АД", 0.15, RED),
+]
+
+sans_start_ms = 0
+sans_alpha = 0
+sans_box_visible = False
+sans_line_index = 0
+sans_typed = 0
+sans_typing_done = False
+sans_last_char_ms = 0
 
 def draw_heart(surf, x, y, size, color=RED):
     r = size // 4
@@ -205,13 +238,11 @@ while running:
             running = False
         
         if event.type == pygame.KEYDOWN:
-            # ===== ЛОГОТИП =====
             if state == STATE_LOGO:
                 if (event.key == pygame.K_z or event.key == pygame.K_RETURN) and show_press:
                     play_select()
                     state = STATE_MENU
             
-            # ===== МЕНЮ =====
             elif state == STATE_MENU:
                 if event.key == pygame.K_LEFT:
                     if selected == 1:
@@ -233,7 +264,6 @@ while running:
                 if event.key == pygame.K_z or event.key == pygame.K_RETURN:
                     play_select()
                     if selected == 0:
-                        # Останавливаем ВСЮ музыку перед историей
                         stop_all_sounds()
                         state = STATE_HISTORY
                         history_start_ms = pygame.time.get_ticks()
@@ -253,7 +283,6 @@ while running:
                 if event.key == pygame.K_x or event.key == pygame.K_ESCAPE:
                     running = False
             
-            # ===== НАСТРОЙКИ =====
             elif state == STATE_OPTIONS:
                 if event.key == pygame.K_UP:
                     option_selected -= 1
@@ -269,10 +298,17 @@ while running:
                 if event.key == pygame.K_x or event.key == pygame.K_ESCAPE:
                     play_select()
                     state = STATE_MENU
+            
+            elif state == STATE_SANS:
+                if sans_typing_done and (event.key == pygame.K_z or event.key == pygame.K_RETURN):
+                    sans_line_index += 1
+                    if sans_line_index < len(SANS_LINES):
+                        sans_typed = 0
+                        sans_typing_done = False
+                        sans_last_char_ms = pygame.time.get_ticks()
 
     screen.fill(BLACK)
     
-    # ===== ЛОГОТИП =====
     if state == STATE_LOGO:
         if not logo_sound_played:
             if logo_sound and sound_enabled:
@@ -289,7 +325,6 @@ while running:
             if errmod_alpha >= 255:
                 errmod_alpha = 255
                 if not logo_sound2_played:
-                    # Останавливаем первый звук перед запуском второго
                     if sound_enabled:
                         try:
                             pygame.mixer.stop()
@@ -321,7 +356,6 @@ while running:
             tr = text.get_rect(center=(cx, HEIGHT - 60))
             screen.blit(text, tr)
     
-    # ===== МЕНЮ =====
     elif state == STATE_MENU:
         if not menu_music_started:
             if music_enabled:
@@ -371,7 +405,6 @@ while running:
         fr = footer.get_rect(center=(cx, HEIGHT - 15))
         screen.blit(footer, fr)
     
-    # ===== НАСТРОЙКИ =====
     elif state == STATE_OPTIONS:
         title = big_font.render("НАСТРОЙКИ", True, WHITE)
         title_rect = title.get_rect(center=(cx, 60))
@@ -406,15 +439,11 @@ while running:
         hr = hint.get_rect(center=(cx, HEIGHT - 30))
         screen.blit(hint, hr)
     
-    # ===== ИСТОРИЯ =====
     elif state == STATE_HISTORY:
         elapsed = (pygame.time.get_ticks() - history_start_ms) / 1000.0
         
-        # Фаза 1: 0-3 сек — чёрный экран
         if elapsed < 3.0:
             pass
-        
-        # Фаза 2: 3-21 сек — мигание картинкой
         elif elapsed < 21.0:
             if not history_music_started:
                 stop_all_sounds()
@@ -426,19 +455,60 @@ while running:
             segment = int(local // 3)
             if segment % 2 == 0:
                 screen.blit(history_img, history_rect)
-        
-        # Фаза 3: 21-28 сек — колокола
         elif elapsed < 28.0:
             if not bells_started:
                 stop_all_sounds()
                 if music_enabled:
                     play_music('undertale-bells.mp3', loops=0)
                 bells_started = True
-        
         else:
-            pass
+            stop_all_sounds()
+            state = STATE_SANS
+            sans_start_ms = pygame.time.get_ticks()
+            sans_alpha = 0
+            sans_box_visible = False
+            sans_line_index = 0
+            sans_typed = 0
+            sans_typing_done = False
+            sans_last_char_ms = 0
     
-    # ===== FPS =====
+    elif state == STATE_SANS:
+        sans_elapsed = (pygame.time.get_ticks() - sans_start_ms) / 1000.0
+        
+        if sans_alpha < 255:
+            sans_alpha += 5
+            if sans_alpha > 255:
+                sans_alpha = 255
+        
+        if sans_elapsed >= 3.0 and not sans_box_visible:
+            sans_box_visible = True
+            sans_last_char_ms = pygame.time.get_ticks()
+        
+        if sans_box_visible and not sans_typing_done and sans_line_index < len(SANS_LINES):
+            now = pygame.time.get_ticks()
+            line_text = SANS_LINES[sans_line_index][0]
+            char_time_ms = SANS_LINES[sans_line_index][1] * 1000
+            if now - sans_last_char_ms >= char_time_ms:
+                if sans_typed < len(line_text):
+                    sans_typed += 1
+                    sans_last_char_ms = now
+                    if sans_dialog_sound and sound_enabled:
+                        sans_dialog_sound.play()
+                else:
+                    sans_typing_done = True
+        
+        sans_copy = sans_img.copy()
+        sans_copy.set_alpha(sans_alpha)
+        screen.blit(sans_copy, sans_rect)
+        
+        if sans_box_visible and sans_line_index < len(SANS_LINES):
+            screen.blit(dialog_box, dialog_rect)
+            line_text = SANS_LINES[sans_line_index][0]
+            color = SANS_LINES[sans_line_index][2]
+            visible_text = line_text[:sans_typed]
+            text_surface = sans_font.render(visible_text, True, color)
+            screen.blit(text_surface, (dialog_rect.left + 30, dialog_rect.top + 45))
+    
     if show_fps:
         fps_text = small_font.render(f"FPS: {int(clock.get_fps())}", True, GOLD)
         screen.blit(fps_text, (WIDTH - 100, 10))
