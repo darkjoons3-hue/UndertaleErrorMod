@@ -19,6 +19,7 @@ WHITE = (255, 255, 255)
 RED = (255, 0, 0)
 YELLOW = (255, 255, 0)
 GOLD = (255, 215, 0)
+ORANGE = (255, 130, 0)
 
 sound_enabled = True
 music_enabled = True
@@ -55,6 +56,7 @@ def load_image(path, size=None):
         surf.fill(RED)
         return surf
 
+# --- Основные спрайты ---
 logo = load_image('logo.png', (400, 200))
 history_img = load_image('history.png', (500, 370))
 sans_img = load_image('sans-error.png', (320, 320))
@@ -69,16 +71,88 @@ except:
     blob_img = pygame.Surface((170, 70))
     blob_img.fill(RED)
 
-# --- Окно диалога: верхний левый из спрайт-листа ---
+# --- Окно диалога ---
 try:
     dialogs_sheet = pygame.image.load('undertale-dialogs.png')
     dialog_box_small = dialogs_sheet.subsurface(pygame.Rect(15, 15, 105, 75))
     dialog_box = pygame.transform.scale(dialog_box_small, (580, 130))
+    dialog_box_battle = pygame.transform.scale(dialog_box_small, (600, 130))
 except Exception as e:
     print(f"Ошибка окна диалога: {e}")
     dialog_box = pygame.Surface((580, 130))
     dialog_box.fill(BLACK)
     pygame.draw.rect(dialog_box, WHITE, (0, 0, 580, 130), 3)
+    dialog_box_battle = pygame.Surface((600, 130))
+    dialog_box_battle.fill(BLACK)
+    pygame.draw.rect(dialog_box_battle, WHITE, (0, 0, 600, 130), 3)
+
+# ============================================================
+# --- СЕРДЕЧКИ: вырезаем из hearts.png ---
+# ============================================================
+# Все сердечки хранятся в одном файле hearts.png
+# Ниже — координаты каждого сердечка в спрайт-листе.
+# Если что-то обрезано/смещено — подправь эти числа.
+HEART_SIZE = 32  # итоговый размер сердечка на экране
+
+# (x, y, ширина, высота) в исходном спрайт-листе
+HEART_COORDS = {
+    "red":    (10,  20, 30, 30),
+    "blue":   (10, 220, 30, 30),
+    "green":  (10, 400, 30, 30),
+    "purple": (10, 490, 30, 30),
+    "yellow": (10, 570, 30, 30),
+    "orange": (10, 720, 30, 30),
+    "aqua":   (10, 820, 30, 30),
+}
+
+HEART_IMAGES = {}
+try:
+    hearts_sheet = pygame.image.load('hearts.png')
+    for name, rect in HEART_COORDS.items():
+        try:
+            piece = hearts_sheet.subsurface(pygame.Rect(rect))
+            piece = pygame.transform.scale(piece, (HEART_SIZE, HEART_SIZE))
+            HEART_IMAGES[name] = piece
+        except Exception as e:
+            print(f"Ошибка вырезания сердечка {name}: {e}")
+except Exception as e:
+    print(f"Ошибка загрузки hearts.png: {e}")
+
+# Какое сердечко сейчас активно (по сюжету можно менять)
+current_heart = "red"
+
+# ============================================================
+# --- КНОПКИ БОЯ: вырезаем из battle-buttons.png ---
+# ============================================================
+# Порядок кнопок в спрайт-листе (сверху вниз):
+# ACT, FIGHT, ITEM, MERCY
+# Возьмём обычные (жёлтые, без свечения) — это первая колонка.
+BUTTON_W = 140
+BUTTON_H = 42
+
+# (x, y, ширина, высота) — обычные жёлтые кнопки
+BUTTON_COORDS = {
+    "FIGHT": (0,  55,  145, 40),
+    "ACT":   (0,   0,  145, 40),
+    "ITEM":  (0, 110,  145, 40),
+    "MERCY": (0, 165,  145, 40),
+}
+BUTTON_NAMES = ["FIGHT", "ACT", "ITEM", "MERCY"]
+
+BUTTON_IMAGES = {}
+try:
+    buttons_sheet = pygame.image.load('battle-buttons.png')
+    for name, rect in BUTTON_COORDS.items():
+        try:
+            piece = buttons_sheet.subsurface(pygame.Rect(rect))
+            piece = pygame.transform.scale(piece, (BUTTON_W, BUTTON_H))
+            BUTTON_IMAGES[name] = piece
+        except Exception as e:
+            print(f"Ошибка вырезания кнопки {name}: {e}")
+except Exception as e:
+    print(f"Ошибка загрузки battle-buttons.png: {e}")
+
+# ============================================================
 
 cx = WIDTH // 2
 cy = HEIGHT // 2
@@ -86,22 +160,27 @@ logo_rect = logo.get_rect(center=(cx, cy - 60))
 history_rect = history_img.get_rect(center=(cx, cy))
 sans_rect = sans_img.get_rect(center=(cx, 190))
 dialog_rect = dialog_box.get_rect(center=(cx, 400))
+battle_dialog_rect = dialog_box_battle.get_rect(center=(cx, 390))
 
+# --- Шрифты ---
 try:
     font_path = 'determinationmonorusbylyajk.otf'
     font = pygame.font.Font(font_path, 26)
     small_font = pygame.font.Font(font_path, 16)
     big_font = pygame.font.Font(font_path, 36)
+    battle_font = pygame.font.Font(font_path, 24)
 except:
     font = pygame.font.Font(None, 32)
     small_font = pygame.font.Font(None, 22)
     big_font = pygame.font.Font(None, 40)
+    battle_font = pygame.font.Font(None, 28)
 
 try:
     sans_font = pygame.font.Font('ComicSans.ttf', 22)
 except:
     sans_font = pygame.font.Font(None, 24)
 
+# --- Звуки ---
 def load_sound(path):
     try:
         return pygame.mixer.Sound(path)
@@ -141,11 +220,13 @@ def stop_all_sounds():
     except:
         pass
 
+# --- Состояния ---
 STATE_LOGO = 0
 STATE_MENU = 1
 STATE_OPTIONS = 2
 STATE_HISTORY = 3
 STATE_SANS = 4
+STATE_BATTLE = 5
 state = STATE_LOGO
 
 alpha = 0
@@ -175,7 +256,6 @@ history_start_ms = 0
 history_music_started = False
 bells_started = False
 
-# Диалоги Санса (текст, скорость сек/буква, цвет)
 SANS_LINES = [
     ("Вижу в тебе много зла", 0.06, WHITE),
     ("Чувак тебе надо расслабится, ведь тебе сейчас предстоит выжить в вечных муках", 0.028, WHITE),
@@ -190,16 +270,42 @@ sans_typed = 0
 sans_typing_done = False
 sans_last_char_ms = 0
 
+# ===== БОЕВАЯ СИСТЕМА =====
+BATTLE_BOX = pygame.Rect(80, 60, 480, 160)
+BUTTON_GAP = 13
+BUTTON_Y = 260
+BUTTONS = [
+    pygame.Rect(20 + i * (BUTTON_W + BUTTON_GAP), BUTTON_Y, BUTTON_W, BUTTON_H)
+    for i in range(4)
+]
+
+battle_start_ms = 0
+battle_alpha = 0
+heart_x = 320
+heart_y = 130
+heart_size = HEART_SIZE
+heart_mode = "box"
+selected_btn = 0
+buttons_unlocked = False
+battle_dialog_visible = False
+battle_dialog_text = ""
+
 def draw_heart(surf, x, y, size, color=RED):
-    r = size // 4
-    c1 = (x - r, y - r)
-    c2 = (x + r, y - r)
-    pygame.draw.circle(surf, color, c1, r)
-    pygame.draw.circle(surf, color, c2, r)
-    p1 = (x - 2 * r, y - r)
-    p2 = (x + 2 * r, y - r)
-    p3 = (x, y + r * 2)
-    pygame.draw.polygon(surf, color, [p1, p2, p3])
+    """Рисует сердечко нужного цвета (из спрайт-листа) или фигуру."""
+    img = HEART_IMAGES.get(current_heart)
+    if img:
+        rect = img.get_rect(center=(int(x), int(y)))
+        surf.blit(img, rect)
+    else:
+        r = size // 4
+        c1 = (x - r, y - r)
+        c2 = (x + r, y - r)
+        pygame.draw.circle(surf, color, c1, r)
+        pygame.draw.circle(surf, color, c2, r)
+        p1 = (x - 2 * r, y - r)
+        p2 = (x + 2 * r, y - r)
+        p3 = (x, y + r * 2)
+        pygame.draw.polygon(surf, color, [p1, p2, p3])
 
 def option_action():
     global option_selected, state, sound_enabled, music_enabled, show_fps, fullscreen, screen
@@ -302,13 +408,41 @@ while running:
             elif state == STATE_SANS:
                 if sans_typing_done and (event.key == pygame.K_z or event.key == pygame.K_RETURN):
                     sans_line_index += 1
-                    if sans_line_index < len(SANS_LINES):
+                    if sans_line_index >= len(SANS_LINES):
+                        state = STATE_BATTLE
+                        battle_start_ms = pygame.time.get_ticks()
+                        battle_alpha = 0
+                        heart_x = BATTLE_BOX.centerx
+                        heart_y = BATTLE_BOX.centery
+                        heart_mode = "box"
+                        selected_btn = 0
+                        buttons_unlocked = False
+                        battle_dialog_visible = False
+                        battle_dialog_text = ""
+                    else:
                         sans_typed = 0
                         sans_typing_done = False
                         sans_last_char_ms = pygame.time.get_ticks()
+            
+            elif state == STATE_BATTLE:
+                if event.key in (pygame.K_z, pygame.K_RETURN):
+                    if heart_mode == "buttons" and buttons_unlocked and not battle_dialog_visible:
+                        battle_dialog_visible = True
+                        battle_dialog_text = f"Вы выбрали: {BUTTON_NAMES[selected_btn]}"
+                        play_select()
+                if event.key in (pygame.K_x, pygame.K_ESCAPE):
+                    running = False
+                if heart_mode == "box" and event.key == pygame.K_UP and buttons_unlocked:
+                    if heart_y <= BATTLE_BOX.top + 20:
+                        heart_mode = "buttons"
+                if heart_mode == "buttons" and event.key == pygame.K_DOWN:
+                    heart_mode = "box"
+                    heart_y = BATTLE_BOX.top + 20
+                    battle_dialog_visible = False
 
     screen.fill(BLACK)
     
+    # ===== ЛОГОТИП =====
     if state == STATE_LOGO:
         if not logo_sound_played:
             if logo_sound and sound_enabled:
@@ -356,6 +490,7 @@ while running:
             tr = text.get_rect(center=(cx, HEIGHT - 60))
             screen.blit(text, tr)
     
+    # ===== МЕНЮ =====
     elif state == STATE_MENU:
         if not menu_music_started:
             if music_enabled:
@@ -405,6 +540,7 @@ while running:
         fr = footer.get_rect(center=(cx, HEIGHT - 15))
         screen.blit(footer, fr)
     
+    # ===== НАСТРОЙКИ =====
     elif state == STATE_OPTIONS:
         title = big_font.render("НАСТРОЙКИ", True, WHITE)
         title_rect = title.get_rect(center=(cx, 60))
@@ -439,6 +575,7 @@ while running:
         hr = hint.get_rect(center=(cx, HEIGHT - 30))
         screen.blit(hint, hr)
     
+    # ===== ИСТОРИЯ =====
     elif state == STATE_HISTORY:
         elapsed = (pygame.time.get_ticks() - history_start_ms) / 1000.0
         
@@ -472,6 +609,7 @@ while running:
             sans_typing_done = False
             sans_last_char_ms = 0
     
+    # ===== САНС =====
     elif state == STATE_SANS:
         sans_elapsed = (pygame.time.get_ticks() - sans_start_ms) / 1000.0
         
@@ -508,6 +646,99 @@ while running:
             visible_text = line_text[:sans_typed]
             text_surface = sans_font.render(visible_text, True, color)
             screen.blit(text_surface, (dialog_rect.left + 30, dialog_rect.top + 45))
+    
+    # ===== БОЙ =====
+    elif state == STATE_BATTLE:
+        dt = clock.get_time() / 1000.0
+        elapsed = (pygame.time.get_ticks() - battle_start_ms) / 1000.0
+        if elapsed >= 10.0:
+            buttons_unlocked = True
+        
+        # --- Движение сердечка ---
+        keys = pygame.key.get_pressed()
+        if heart_mode == "box":
+            dx = 0
+            dy = 0
+            if keys[pygame.K_LEFT]:
+                dx -= 1
+            if keys[pygame.K_RIGHT]:
+                dx += 1
+            if keys[pygame.K_UP]:
+                dy -= 1
+            if keys[pygame.K_DOWN]:
+                dy += 1
+            
+            if dx != 0 and dy != 0:
+                length = (dx * dx + dy * dy) ** 0.5
+                dx /= length
+                dy /= length
+            
+            HEART_SPEED = 180
+            heart_x += dx * HEART_SPEED * dt
+            heart_y += dy * HEART_SPEED * dt
+            
+            margin = 12
+            heart_x = max(BATTLE_BOX.left + margin, min(BATTLE_BOX.right - margin, heart_x))
+            heart_y = max(BATTLE_BOX.top + margin, min(BATTLE_BOX.bottom - margin, heart_y))
+        
+        elif heart_mode == "buttons":
+            if keys[pygame.K_LEFT]:
+                selected_btn = max(0, selected_btn - 1)
+            if keys[pygame.K_RIGHT]:
+                selected_btn = min(len(BUTTONS) - 1, selected_btn + 1)
+        
+        # --- Бокс ---
+        pygame.draw.rect(screen, WHITE, BATTLE_BOX, 3)
+        
+        # --- Сердечко ---
+        if heart_mode == "box":
+            draw_heart(screen, int(heart_x), int(heart_y), heart_size)
+        else:
+            btn = BUTTONS[selected_btn]
+            draw_heart(screen, btn.centerx, btn.top - 22, heart_size)
+        
+        # --- Кнопки ---
+        for i, btn_rect in enumerate(BUTTONS):
+            hovered = (heart_mode == "buttons" and selected_btn == i and buttons_unlocked)
+            
+            img = BUTTON_IMAGES.get(BUTTON_NAMES[i])
+            if img:
+                img_rect = img.get_rect(center=btn_rect.center)
+                screen.blit(img, img_rect)
+                
+                if hovered:
+                    pygame.draw.rect(screen, YELLOW, btn_rect, 3)
+            else:
+                col = YELLOW if hovered else ORANGE
+                pygame.draw.rect(screen, col, btn_rect, 3)
+                txt = battle_font.render(BUTTON_NAMES[i], True, col)
+                txt_rect = txt.get_rect(center=btn_rect.center)
+                screen.blit(txt, txt_rect)
+        
+        # --- Информация об игроке ---
+        info = battle_font.render(f"{player_name}   {player_lv}     HP  20/20", True, WHITE)
+        screen.blit(info, (30, 225))
+        
+        # --- Диалог ---
+        if battle_dialog_visible:
+            screen.blit(dialog_box_battle, battle_dialog_rect)
+            txt = battle_font.render(battle_dialog_text, True, WHITE)
+            screen.blit(txt, (battle_dialog_rect.left + 30, battle_dialog_rect.top + 50))
+        
+        # --- Подсказка ---
+        if buttons_unlocked and heart_mode == "box" and not battle_dialog_visible:
+            hint = small_font.render("↑ - к кнопкам", True, (150, 150, 150))
+            screen.blit(hint, (cx - 60, BATTLE_BOX.bottom + 5))
+        
+        # --- Плавное появление боя ---
+        if battle_alpha < 255:
+            battle_alpha += 5
+            if battle_alpha > 255:
+                battle_alpha = 255
+            overlay = pygame.Surface((WIDTH, HEIGHT))
+            overlay.fill(BLACK)
+            overlay.set_alpha(255 - battle_alpha)
+            screen.blit(overlay, (0, 0))
     
     if show_fps:
         fps_text = small_font.render(f"FPS: {int(clock.get_fps())}", True, GOLD)
