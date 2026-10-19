@@ -8,7 +8,6 @@ pygame.mixer.init()
 
 # ==== ФУНКЦИЯ ДЛЯ ПОИСКА ФАЙЛОВ В EXE ====
 def resource_path(relative_path):
-    """Ищет файлы внутри .exe и в обычной папке"""
     try:
         base_path = sys._MEIPASS
     except Exception:
@@ -31,6 +30,7 @@ GOLD = (255, 215, 0)
 ORANGE = (255, 130, 0)
 BLUE = (60, 60, 255)
 PURPLE = (150, 0, 200)
+MAGENTA = (255, 0, 255) # Цвет фона спрайтов
 
 sound_enabled = True
 music_enabled = True
@@ -83,9 +83,11 @@ if os.path.exists(RESET_FLAG):
         pass
 
 # ===================== ЗАГРУЗКА =====================
-def load_image(path, size=None):
+def load_image(path, size=None, colorkey=None):
     try:
-        img = pygame.image.load(resource_path(path))
+        img = pygame.image.load(resource_path(path)).convert_alpha()
+        if colorkey:
+            img.set_colorkey(colorkey)
         if size:
             img = pygame.transform.scale(img, size)
         return img
@@ -96,28 +98,19 @@ def load_image(path, size=None):
 
 logo = load_image('logo.png', (400, 200))
 history_img = load_image('history.png', (500, 370))
-sans_img = load_image('sans-error.png', (320, 320))
+# Санс теперь меньше и с прозрачным фоном
+sans_img = load_image('sans-error.png', (180, 180), MAGENTA)
 
-try:
-    textures = pygame.image.load(resource_path('textures.png'))
-    columns_img = textures.subsurface(pygame.Rect(240, 390, 160, 140))
-    blob_img = textures.subsurface(pygame.Rect(400, 350, 170, 70))
-except:
-    columns_img = pygame.Surface((160, 140)); columns_img.fill(RED)
-    blob_img = pygame.Surface((170, 70)); blob_img.fill(RED)
+# --- Окно диалога (РИСУЕМ КОДОМ, ЧТОБЫ БЫЛО ИДЕАЛЬНО) ---
+dialog_box = pygame.Surface((580, 130))
+dialog_box.fill(BLACK)
+pygame.draw.rect(dialog_box, WHITE, (0, 0, 580, 130), 4)
 
-try:
-    dialogs_sheet = pygame.image.load(resource_path('undertale-dialogs.png'))
-    dialog_box_small = dialogs_sheet.subsurface(pygame.Rect(15, 15, 105, 75))
-    dialog_box = pygame.transform.scale(dialog_box_small, (580, 130))
-    dialog_box_battle = pygame.transform.scale(dialog_box_small, (600, 130))
-except:
-    dialog_box = pygame.Surface((580, 130)); dialog_box.fill(BLACK)
-    pygame.draw.rect(dialog_box, WHITE, (0, 0, 580, 130), 3)
-    dialog_box_battle = pygame.Surface((600, 130)); dialog_box_battle.fill(BLACK)
-    pygame.draw.rect(dialog_box_battle, WHITE, (0, 0, 600, 130), 3)
+dialog_box_battle = pygame.Surface((600, 130))
+dialog_box_battle.fill(BLACK)
+pygame.draw.rect(dialog_box_battle, WHITE, (0, 0, 600, 130), 4)
 
-# --- Сердечки ---
+# --- Сердечки (с прозрачностью) ---
 HEART_SIZE = 28
 HEART_COORDS = {
     "red":    (10,  20, 30, 30),
@@ -129,7 +122,8 @@ HEART_COORDS = {
 }
 HEART_IMAGES = {}
 try:
-    hs = pygame.image.load(resource_path('hearts.png'))
+    hs = pygame.image.load(resource_path('hearts.png')).convert_alpha()
+    hs.set_colorkey(MAGENTA)
     for n, r in HEART_COORDS.items():
         try:
             p = hs.subsurface(pygame.Rect(r))
@@ -138,7 +132,7 @@ try:
 except: pass
 current_heart = "red"
 
-# --- Кнопки ---
+# --- Кнопки (с прозрачностью) ---
 BUTTON_W = 140; BUTTON_H = 42
 BUTTON_COORDS = {
     "FIGHT": (0,  55, 145, 40),
@@ -149,7 +143,8 @@ BUTTON_COORDS = {
 BUTTON_NAMES = ["FIGHT", "ACT", "ITEM", "MERCY"]
 BUTTON_IMAGES = {}
 try:
-    bs = pygame.image.load(resource_path('battle-buttons.png'))
+    bs = pygame.image.load(resource_path('battle-buttons.png')).convert_alpha()
+    bs.set_colorkey(MAGENTA)
     for n, r in BUTTON_COORDS.items():
         try:
             p = bs.subsurface(pygame.Rect(r))
@@ -157,11 +152,12 @@ try:
         except: pass
 except: pass
 
-# --- Кости и бластеры ---
+# --- Кости и бластеры (с прозрачностью) ---
 BONE_IMG = None
 BLASTER_FRAMES = []
 try:
-    sb = pygame.image.load(resource_path('sans-battle.png'))
+    sb = pygame.image.load(resource_path('sans-battle.png')).convert_alpha()
+    sb.set_colorkey(MAGENTA)
     try:
         BONE_IMG = sb.subsurface(pygame.Rect(270, 310, 25, 400))
     except: pass
@@ -179,7 +175,7 @@ cx = WIDTH // 2
 cy = HEIGHT // 2
 logo_rect = logo.get_rect(center=(cx, cy - 60))
 history_rect = history_img.get_rect(center=(cx, cy))
-sans_rect = sans_img.get_rect(center=(cx, 190))
+sans_rect = sans_img.get_rect(center=(cx, 180)) # Санс теперь по центру сверху
 dialog_rect = dialog_box.get_rect(center=(cx, 400))
 battle_dialog_rect = dialog_box_battle.get_rect(center=(cx, 390))
 
@@ -282,74 +278,35 @@ BATTLE_BOX_WIDE = pygame.Rect(20, 90, 600, 100)
 BUTTON_GAP = 13; BUTTON_Y = 260
 BUTTONS = [pygame.Rect(20 + i * (BUTTON_W + BUTTON_GAP), BUTTON_Y, BUTTON_W, BUTTON_H) for i in range(4)]
 
-# Фазы атаки
-PHASE_INTRO = 0
-PHASE_TRANSFORM = 1
-PHASE_JUMP = 2
-PHASE_WALL_RIGHT = 3
-PHASE_WALL_LEFT = 4
-PHASE_BLASTERS = 5
-PHASE_BLUE_BONES = 6
-PHASE_DIALOG = 7
-PHASE_READY = 8
+PHASE_INTRO = 0; PHASE_TRANSFORM = 1; PHASE_JUMP = 2; PHASE_WALL_RIGHT = 3
+PHASE_WALL_LEFT = 4; PHASE_BLASTERS = 5; PHASE_BLUE_BONES = 6; PHASE_DIALOG = 7; PHASE_READY = 8
 
-# Игрок
-player_hp = 92
-player_max_hp = 92
-player_kr = 0
-player_max_kr = 40
-kr_timer = 0
+player_hp = 92; player_max_hp = 92; player_kr = 0; player_max_kr = 40; kr_timer = 0
 
-# Сердце
-heart_x = 320; heart_y = 130
-heart_vx = 0; heart_vy = 0
-heart_gravity = 60
-heart_jump_power = 200
-heart_extra_jump = 250
-heart_grounded = False
-heart_prev_x = 320; heart_prev_y = 130
-heart_moving = False
+heart_x = 320; heart_y = 130; heart_vx = 0; heart_vy = 0
+heart_gravity = 60; heart_jump_power = 200; heart_extra_jump = 250
+heart_grounded = False; heart_moving = False
 invulnerable_until = 0
 
-# Бой
-battle_start_ms = 0; battle_alpha = 0
-attack_phase = PHASE_INTRO
-phase_start_ms = 0
-buttons_unlocked = False
-selected_btn = 0
-heart_mode = "box"
-battle_dialog_visible = False
-battle_dialog_text = ""
-gameover_start_ms = 0
+battle_start_ms = 0; battle_alpha = 0; attack_phase = PHASE_INTRO; phase_start_ms = 0
+buttons_unlocked = False; selected_btn = 0; heart_mode = "box"
+battle_dialog_visible = False; battle_dialog_text = ""; gameover_start_ms = 0
 
-# Кости (список словарей)
-bones = []  # {"rect": Rect, "type": "white"/"blue"/"orange", "vx": , "vy": }
-blasters = []  # {"x", "y", "angle", "frame", "timer", "fired", "target_x", "target_y"}
+bones = []; blasters = []
 
 def reset_battle():
     global player_hp, player_kr, kr_timer, heart_x, heart_y, heart_vx, heart_vy
     global heart_grounded, heart_mode, attack_phase, phase_start_ms, bones, blasters
     global buttons_unlocked, selected_btn, battle_dialog_visible, battle_dialog_text
     global current_heart, battle_start_ms, battle_alpha, invulnerable_until
-    player_hp = player_max_hp
-    player_kr = 0
-    kr_timer = 0
-    heart_x = BATTLE_BOX.centerx
-    heart_y = BATTLE_BOX.centery
-    heart_vx = 0; heart_vy = 0
-    heart_grounded = False
-    heart_mode = "box"
-    attack_phase = PHASE_INTRO
-    phase_start_ms = pygame.time.get_ticks()
-    bones = []; blasters = []
-    buttons_unlocked = False
-    selected_btn = 0
-    battle_dialog_visible = False
-    battle_dialog_text = ""
-    current_heart = "red"
-    battle_start_ms = pygame.time.get_ticks()
-    battle_alpha = 0
-    invulnerable_until = 0
+    player_hp = player_max_hp; player_kr = 0; kr_timer = 0
+    heart_x = BATTLE_BOX.centerx; heart_y = BATTLE_BOX.centery
+    heart_vx = 0; heart_vy = 0; heart_grounded = False; heart_mode = "box"
+    attack_phase = PHASE_INTRO; phase_start_ms = pygame.time.get_ticks()
+    bones = []; blasters = []; buttons_unlocked = False; selected_btn = 0
+    battle_dialog_visible = False; battle_dialog_text = ""
+    current_heart = "red"; battle_start_ms = pygame.time.get_ticks()
+    battle_alpha = 0; invulnerable_until = 0
 
 def take_damage():
     global player_hp, player_kr
@@ -391,12 +348,10 @@ def option_action():
         else: play_music('determination.mp3')
     elif option_selected == 3: show_fps = not show_fps
     elif option_selected == 4:
-        reset_save()
-        SAVE["deaths"] = 0
+        reset_save(); SAVE["deaths"] = 0
     elif option_selected == 5:
         fullscreen = False; sound_enabled = True; music_enabled = True; show_fps = False
-        screen = pygame.display.set_mode((WIDTH, HEIGHT))
-        play_music('determination.mp3')
+        screen = pygame.display.set_mode((WIDTH, HEIGHT)); play_music('determination.mp3')
     elif option_selected == 6:
         state = STATE_MENU
 
@@ -413,24 +368,17 @@ while running:
             running = False
 
         if event.type == pygame.KEYDOWN:
-            # ---- ЛОГОТИП ----
             if state == STATE_LOGO:
                 if (event.key in (pygame.K_z, pygame.K_RETURN)) and show_press:
                     play_select()
                     if SAVE.get("deaths", 0) > 0:
-                        sans_use_alt = True
-                        stop_all_sounds()
-                        state = STATE_SANS
-                        sans_start_ms = now; sans_alpha = 0
-                        sans_box_visible = False; sans_line_index = 0
-                        sans_typed = 0; sans_typing_done = False
-                        sans_last_char_ms = 0
-                        play_sound(snd_encounter)
+                        sans_use_alt = True; stop_all_sounds(); state = STATE_SANS
+                        sans_start_ms = now; sans_alpha = 0; sans_box_visible = False
+                        sans_line_index = 0; sans_typed = 0; sans_typing_done = False
+                        sans_last_char_ms = 0; play_sound(snd_encounter)
                     else:
-                        sans_use_alt = False
-                        state = STATE_MENU
+                        sans_use_alt = False; state = STATE_MENU
 
-            # ---- МЕНЮ ----
             elif state == STATE_MENU:
                 if event.key == pygame.K_LEFT:
                     if selected == 1: selected = 0; last_top = 0
@@ -445,8 +393,7 @@ while running:
                 if event.key in (pygame.K_z, pygame.K_RETURN):
                     play_select()
                     if selected == 0:
-                        stop_all_sounds()
-                        state = STATE_HISTORY
+                        stop_all_sounds(); state = STATE_HISTORY
                         history_start_ms = now; history_music_started = False; bells_started = False
                         sans_use_alt = False
                     elif selected == 1:
@@ -456,58 +403,39 @@ while running:
                         running = False
                     elif selected == 2:
                         state = STATE_OPTIONS; option_selected = 0
-                if event.key in (pygame.K_x, pygame.K_ESCAPE):
-                    running = False
+                if event.key in (pygame.K_x, pygame.K_ESCAPE): running = False
 
-            # ---- НАСТРОЙКИ ----
             elif state == STATE_OPTIONS:
-                if event.key == pygame.K_UP:
-                    option_selected = (option_selected - 1) % len(option_items)
-                if event.key == pygame.K_DOWN:
-                    option_selected = (option_selected + 1) % len(option_items)
-                if event.key in (pygame.K_z, pygame.K_RETURN):
-                    play_select(); option_action()
-                if event.key in (pygame.K_x, pygame.K_ESCAPE):
-                    play_select(); state = STATE_MENU
+                if event.key == pygame.K_UP: option_selected = (option_selected - 1) % len(option_items)
+                if event.key == pygame.K_DOWN: option_selected = (option_selected + 1) % len(option_items)
+                if event.key in (pygame.K_z, pygame.K_RETURN): play_select(); option_action()
+                if event.key in (pygame.K_x, pygame.K_ESCAPE): play_select(); state = STATE_MENU
 
-            # ---- САНС ----
             elif state == STATE_SANS:
                 if sans_typing_done and (event.key in (pygame.K_z, pygame.K_RETURN)):
                     sans_line_index += 1
                     total = len(SANS_ALT) if sans_use_alt else len(SANS_LINES)
                     if sans_line_index >= total:
-                        reset_battle()
-                        state = STATE_BATTLE
+                        reset_battle(); state = STATE_BATTLE
                     else:
-                        sans_typed = 0; sans_typing_done = False
-                        sans_last_char_ms = now
+                        sans_typed = 0; sans_typing_done = False; sans_last_char_ms = now
 
-            # ---- БОЙ ----
             elif state == STATE_BATTLE:
                 if event.key in (pygame.K_z, pygame.K_RETURN):
                     if heart_mode == "buttons" and buttons_unlocked and not battle_dialog_visible:
-                        battle_dialog_visible = True
-                        battle_dialog_text = f"Вы выбрали: {BUTTON_NAMES[selected_btn]}"
+                        battle_dialog_visible = True; battle_dialog_text = f"Вы выбрали: {BUTTON_NAMES[selected_btn]}"
                         play_select()
                 if attack_phase == PHASE_READY:
                     if heart_mode == "box" and event.key == pygame.K_UP:
-                        if heart_y <= BATTLE_BOX.top + 20:
-                            heart_mode = "buttons"
+                        if heart_y <= BATTLE_BOX.top + 20: heart_mode = "buttons"
                     if heart_mode == "buttons" and event.key == pygame.K_DOWN:
-                        heart_mode = "box"; heart_y = BATTLE_BOX.top + 20
-                        battle_dialog_visible = False
-
-            # ---- GAME OVER ----
-            elif state == STATE_GAMEOVER:
-                pass
+                        heart_mode = "box"; heart_y = BATTLE_BOX.top + 20; battle_dialog_visible = False
 
     # ===================== ОТРИСОВКА =====================
     screen.fill(BLACK)
 
-    # ---- ЛОГОТИП ----
     if state == STATE_LOGO:
-        if not snd_logo_played:
-            play_sound(snd_logo); snd_logo_played = True
+        if not snd_logo_played: play_sound(snd_logo); snd_logo_played = True
         if fade_in:
             alpha += 3
             if alpha >= 255: alpha = 255; fade_in = False
@@ -523,8 +451,7 @@ while running:
             press_timer += 1
             if press_timer >= 30: press_timer = 0
             show_press = press_timer < 15
-        lc = logo.copy(); lc.set_alpha(alpha)
-        screen.blit(lc, logo_rect)
+        lc = logo.copy(); lc.set_alpha(alpha); screen.blit(lc, logo_rect)
         if errmod_alpha > 0:
             et = big_font.render("Error Mod", True, RED)
             ec = et.copy(); ec.set_alpha(errmod_alpha)
@@ -533,34 +460,41 @@ while running:
             t = font.render("Нажмите Z или ENTER", True, WHITE)
             screen.blit(t, t.get_rect(center=(cx, HEIGHT - 60)))
 
-    # ---- МЕНЮ ----
     elif state == STATE_MENU:
         if not menu_music_started:
             if music_enabled: play_music('determination.mp3')
             menu_music_started = True
+        
+        # Заглушки для колонн и пятна, чтобы не было фиолетовых квадратов
+        pygame.draw.rect(screen, (60, 20, 60), (cx - 80, 20, 30, 100)) # Левая колонна
+        pygame.draw.rect(screen, (60, 20, 60), (cx + 50, 20, 30, 100)) # Правая колонна
+        pygame.draw.ellipse(screen, (100, 100, 150), (cx - 80, 380, 160, 50)) # Пятно
+
         screen.blit(big_font.render("X", True, WHITE), (20, 20))
-        screen.blit(columns_img, (cx - 80, 20))
         screen.blit(font.render(player_name, True, WHITE), (150, 170))
         screen.blit(font.render(player_lv, True, WHITE), (300, 170))
         screen.blit(font.render(player_time, True, WHITE), (470, 170))
         screen.blit(font.render(status_text, True, WHITE), (150, 210))
+        
         c1 = GOLD if selected == 0 else WHITE
         t1 = font.render(menu_items[0], True, c1); r1 = t1.get_rect(topleft=(130, 280))
         screen.blit(t1, r1)
-        if selected == 0: draw_heart(screen, 100, 290, 30)
+        if selected == 0: 
+            draw_heart(screen, 100, 290, 30) # Теперь сердечко рисуется правильно
+            
         c2 = GOLD if selected == 1 else WHITE
         t2 = font.render(menu_items[1], True, c2); r2 = t2.get_rect(topleft=(400, 280))
         screen.blit(t2, r2)
         if selected == 1: draw_heart(screen, 370, 290, 30)
+        
         c3 = GOLD if selected == 2 else WHITE
         t3 = font.render(menu_items[2], True, c3); r3 = t3.get_rect(center=(cx, 345))
         screen.blit(t3, r3)
         if selected == 2: draw_heart(screen, r3.left - 40, 355, 30)
-        screen.blit(blob_img, (cx - 85, 390))
+        
         f = small_font.render(footer_text, True, WHITE)
         screen.blit(f, f.get_rect(center=(cx, HEIGHT - 15)))
 
-    # ---- НАСТРОЙКИ ----
     elif state == STATE_OPTIONS:
         screen.blit(big_font.render("НАСТРОЙКИ", True, WHITE), big_font.render("НАСТРОЙКИ", True, WHITE).get_rect(center=(cx, 50)))
         start_y = 120; spacing = 42
@@ -580,7 +514,6 @@ while running:
         h = small_font.render("Стрелки - выбор, Z/ENTER - изменить, X/ESC - назад", True, WHITE)
         screen.blit(h, h.get_rect(center=(cx, HEIGHT - 25)))
 
-    # ---- ИСТОРИЯ ----
     elif state == STATE_HISTORY:
         el = (now - history_start_ms) / 1000.0
         if el < 3.0: pass
@@ -598,42 +531,38 @@ while running:
                 if music_enabled: play_music('undertale-bells.mp3', loops=0)
                 bells_started = True
         else:
-            stop_all_sounds()
-            state = STATE_SANS
-            sans_start_ms = now; sans_alpha = 0
-            sans_box_visible = False; sans_line_index = 0
-            sans_typed = 0; sans_typing_done = False
-            sans_last_char_ms = 0
-            play_sound(snd_encounter)
+            stop_all_sounds(); state = STATE_SANS
+            sans_start_ms = now; sans_alpha = 0; sans_box_visible = False
+            sans_line_index = 0; sans_typed = 0; sans_typing_done = False
+            sans_last_char_ms = 0; play_sound(snd_encounter)
 
-    # ---- САНС ----
     elif state == STATE_SANS:
         el = (now - sans_start_ms) / 1000.0
         if sans_alpha < 255:
             sans_alpha += 5
             if sans_alpha > 255: sans_alpha = 255
         if el >= 3.0 and not sans_box_visible:
-            sans_box_visible = True
-            sans_last_char_ms = now
+            sans_box_visible = True; sans_last_char_ms = now
+        
         lines = SANS_ALT if sans_use_alt else SANS_LINES
         if sans_box_visible and not sans_typing_done and sans_line_index < len(lines):
             lt, spd, _ = lines[sans_line_index]
             if now - sans_last_char_ms >= spd * 1000:
                 if sans_typed < len(lt):
-                    sans_typed += 1
-                    sans_last_char_ms = now
-                    play_sound(snd_sans)
+                    sans_typed += 1; sans_last_char_ms = now; play_sound(snd_sans)
                 else:
                     sans_typing_done = True
+                    
         sc = sans_img.copy(); sc.set_alpha(sans_alpha)
         screen.blit(sc, sans_rect)
+        
         if sans_box_visible and sans_line_index < len(lines):
             screen.blit(dialog_box, dialog_rect)
             lt, _, col = lines[sans_line_index]
             txt = sans_font.render(lt[:sans_typed], True, col)
+            # Центрируем текст в окне
             screen.blit(txt, (dialog_rect.left + 30, dialog_rect.top + 45))
 
-    # ---- БОЙ ----
     elif state == STATE_BATTLE:
         if player_kr > 0:
             kr_timer += 1
@@ -643,133 +572,104 @@ while running:
             elif player_kr >= 10: interval = 15
             else: interval = 30
             if kr_timer >= interval:
-                kr_timer = 0
-                player_kr -= 1
-                player_hp -= 1
+                kr_timer = 0; player_kr -= 1; player_hp -= 1
 
         if player_hp <= 0 and state != STATE_GAMEOVER:
-            play_sound(snd_shatter)
-            stop_all_sounds()
-            SAVE["deaths"] = SAVE.get("deaths", 0) + 1
-            write_save(SAVE)
-            state = STATE_GAMEOVER
-            gameover_start_ms = now
+            play_sound(snd_shatter); stop_all_sounds()
+            SAVE["deaths"] = SAVE.get("deaths", 0) + 1; write_save(SAVE)
+            state = STATE_GAMEOVER; gameover_start_ms = now
         else:
             el_phase = (now - phase_start_ms) / 1000.0
 
-            # === Фаза 0: Вступление ===
+            # ... (Логика атаки остается прежней) ...
+            # Фаза 0: Вступление
             if attack_phase == PHASE_INTRO:
                 if el_phase >= 1.0:
                     attack_phase = PHASE_TRANSFORM; phase_start_ms = now
-                    current_heart = "blue"
-                    play_sound(snd_ding)
+                    current_heart = "blue"; play_sound(snd_ding)
 
-            # === Фаза 1: Превращение + падение ===
+            # Фаза 1: Превращение + падение
             elif attack_phase == PHASE_TRANSFORM:
                 heart_vy += heart_gravity * dt
                 keys = pygame.key.get_pressed()
                 if keys[pygame.K_UP] and heart_grounded:
-                    heart_vy = -heart_jump_power
-                    heart_grounded = False
+                    heart_vy = -heart_jump_power; heart_grounded = False
                 elif keys[pygame.K_UP] and heart_vy < 0:
                     heart_vy -= heart_extra_jump * dt
                 heart_y += heart_vy * dt
                 if heart_y >= BATTLE_BOX.bottom - 20:
-                    heart_y = BATTLE_BOX.bottom - 20
-                    heart_vy = 0; heart_grounded = True
+                    heart_y = BATTLE_BOX.bottom - 20; heart_vy = 0; heart_grounded = True
                 if heart_y <= BATTLE_BOX.top + 12:
                     heart_y = BATTLE_BOX.top + 12
                     if heart_vy < 0: heart_vy = 0
                 if el_phase >= 1.5:
-                    attack_phase = PHASE_JUMP; phase_start_ms = now
-                    bones.clear()
+                    attack_phase = PHASE_JUMP; phase_start_ms = now; bones.clear()
                     for i in range(3):
                         b = pygame.Rect(BATTLE_BOX.left + 60 + i * 150, BATTLE_BOX.bottom + 30, 20, 400)
                         bones.append({"rect": b, "type": "white", "vx": 0, "vy": -120})
                     play_sound(snd_bone)
 
-            # === Фаза 2: Прыжки через кости (3 сек) ===
+            # Фаза 2: Прыжки
             elif attack_phase == PHASE_JUMP:
                 heart_vy += heart_gravity * dt
                 keys = pygame.key.get_pressed()
                 if keys[pygame.K_UP] and heart_grounded:
-                    heart_vy = -heart_jump_power
-                    heart_grounded = False
+                    heart_vy = -heart_jump_power; heart_grounded = False
                 elif keys[pygame.K_UP] and heart_vy < 0:
                     heart_vy -= heart_extra_jump * dt
                 heart_y += heart_vy * dt
                 if heart_y >= BATTLE_BOX.bottom - 20:
-                    heart_y = BATTLE_BOX.bottom - 20
-                    heart_vy = 0; heart_grounded = True
+                    heart_y = BATTLE_BOX.bottom - 20; heart_vy = 0; heart_grounded = True
                 if heart_y <= BATTLE_BOX.top + 12:
                     heart_y = BATTLE_BOX.top + 12
                     if heart_vy < 0: heart_vy = 0
-                for b in bones:
-                    b["rect"].y += b["vy"] * dt
+                for b in bones: b["rect"].y += b["vy"] * dt
                 hh = pygame.Rect(heart_x - 8, heart_y - 8, 16, 16)
                 inv = now < invulnerable_until
                 for b in bones:
                     if hh.colliderect(b["rect"]) and not inv:
-                        take_damage()
-                        play_sound(snd_damage)
-                        invulnerable_until = now + 300
-                        break
+                        take_damage(); play_sound(snd_damage); invulnerable_until = now + 300; break
                 if el_phase >= 3.0:
-                    bones.clear()
-                    attack_phase = PHASE_WALL_RIGHT; phase_start_ms = now
+                    bones.clear(); attack_phase = PHASE_WALL_RIGHT; phase_start_ms = now
                     for i in range(4):
                         b = pygame.Rect(BATTLE_BOX_WIDE.left - 100 - i * 200, BATTLE_BOX_WIDE.top + 5, 180, 40)
                         bones.append({"rect": b, "type": "white", "vx": 300, "vy": 0})
-                    play_sound(snd_bone)
-                    heart_x = BATTLE_BOX_WIDE.centerx
-                    heart_y = BATTLE_BOX_WIDE.centery
+                    play_sound(snd_bone); heart_x = BATTLE_BOX_WIDE.centerx; heart_y = BATTLE_BOX_WIDE.centery
 
-            # === Фаза 3: Стена костей вправо ===
+            # Фаза 3: Стена вправо
             elif attack_phase == PHASE_WALL_RIGHT:
-                heart_x += 180 * dt
-                heart_x = min(heart_x, BATTLE_BOX_WIDE.right - 15)
-                for b in bones:
-                    b["rect"].x += b["vx"] * dt
+                heart_x += 180 * dt; heart_x = min(heart_x, BATTLE_BOX_WIDE.right - 15)
+                for b in bones: b["rect"].x += b["vx"] * dt
                 hh = pygame.Rect(heart_x - 8, heart_y - 8, 16, 16)
                 inv = now < invulnerable_until
                 for b in bones:
                     if hh.colliderect(b["rect"]) and not inv:
-                        take_damage(); play_sound(snd_damage)
-                        invulnerable_until = now + 300
-                        break
+                        take_damage(); play_sound(snd_damage); invulnerable_until = now + 300; break
                 if el_phase >= 3.0:
-                    bones.clear()
-                    attack_phase = PHASE_WALL_LEFT; phase_start_ms = now
+                    bones.clear(); attack_phase = PHASE_WALL_LEFT; phase_start_ms = now
                     for i in range(4):
                         b = pygame.Rect(BATTLE_BOX_WIDE.right + i * 200, BATTLE_BOX_WIDE.top + 5, 180, 40)
                         bones.append({"rect": b, "type": "white", "vx": -300, "vy": 0})
-                    play_sound(snd_bone)
-                    heart_x = BATTLE_BOX_WIDE.centerx
+                    play_sound(snd_bone); heart_x = BATTLE_BOX_WIDE.centerx
 
-            # === Фаза 4: Стена костей влево ===
+            # Фаза 4: Стена влево
             elif attack_phase == PHASE_WALL_LEFT:
-                heart_x -= 180 * dt
-                heart_x = max(heart_x, BATTLE_BOX_WIDE.left + 15)
-                for b in bones:
-                    b["rect"].x += b["vx"] * dt
+                heart_x -= 180 * dt; heart_x = max(heart_x, BATTLE_BOX_WIDE.left + 15)
+                for b in bones: b["rect"].x += b["vx"] * dt
                 hh = pygame.Rect(heart_x - 8, heart_y - 8, 16, 16)
                 inv = now < invulnerable_until
                 for b in bones:
                     if hh.colliderect(b["rect"]) and not inv:
-                        take_damage(); play_sound(snd_damage)
-                        invulnerable_until = now + 300
-                        break
+                        take_damage(); play_sound(snd_damage); invulnerable_until = now + 300; break
                 if el_phase >= 3.0:
-                    bones.clear(); blasters.clear()
-                    attack_phase = PHASE_BLASTERS; phase_start_ms = now
-                    current_heart = "red"
-                    heart_x = BATTLE_BOX.centerx; heart_y = BATTLE_BOX.centery
+                    bones.clear(); blasters.clear(); attack_phase = PHASE_BLASTERS; phase_start_ms = now
+                    current_heart = "red"; heart_x = BATTLE_BOX.centerx; heart_y = BATTLE_BOX.centery
                     play_sound(snd_ding)
-                    blasters.append({"x": BATTLE_BOX.left + 60, "y": BATTLE_BOX.top - 60, "frame": 0, "timer": 0, "fired": False, "vx": 0, "vy": 200})
-                    blasters.append({"x": BATTLE_BOX.right - 60, "y": BATTLE_BOX.top - 60, "frame": 0, "timer": 0, "fired": False, "vx": 0, "vy": 200})
+                    blasters.append({"x": BATTLE_BOX.left + 60, "y": BATTLE_BOX.top - 60, "frame": 0, "timer": 0, "fired": False})
+                    blasters.append({"x": BATTLE_BOX.right - 60, "y": BATTLE_BOX.top - 60, "frame": 0, "timer": 0, "fired": False})
                     play_sound(snd_blaster)
 
-            # === Фаза 5: Гастер-бластеры ===
+            # Фаза 5: Бластеры
             elif attack_phase == PHASE_BLASTERS:
                 keys = pygame.key.get_pressed()
                 dx, dy = 0, 0
@@ -778,36 +678,29 @@ while running:
                 if keys[pygame.K_UP]: dy -= 1
                 if keys[pygame.K_DOWN]: dy += 1
                 if dx and dy:
-                    l = (dx*dx+dy*dy) ** 0.5
-                    dx /= l; dy /= l
-                heart_x += dx * 180 * dt
-                heart_y += dy * 180 * dt
+                    l = (dx*dx+dy*dy) ** 0.5; dx /= l; dy /= l
+                heart_x += dx * 180 * dt; heart_y += dy * 180 * dt
                 heart_x = max(BATTLE_BOX.left + 12, min(BATTLE_BOX.right - 12, heart_x))
                 heart_y = max(BATTLE_BOX.top + 12, min(BATTLE_BOX.bottom - 12, heart_y))
                 hh = pygame.Rect(heart_x - 8, heart_y - 8, 16, 16)
                 inv = now < invulnerable_until
                 for bl in blasters:
                     bl["timer"] += 1
-                    if bl["frame"] < 5 and bl["timer"] % 4 == 0:
-                        bl["frame"] += 1
+                    if bl["frame"] < 5 and bl["timer"] % 4 == 0: bl["frame"] += 1
                     if bl["frame"] >= 5 and not bl["fired"]:
-                        bl["fired"] = True
-                        play_sound(snd_blaster)
+                        bl["fired"] = True; play_sound(snd_blaster)
                 for bl in blasters:
                     if bl["fired"]:
                         laser_rect = pygame.Rect(bl["x"] - 15, bl["y"], 30, BATTLE_BOX.height + 100)
                         if hh.colliderect(laser_rect) and not inv:
-                            take_damage(); play_sound(snd_damage)
-                            invulnerable_until = now + 300
-                            break
+                            take_damage(); play_sound(snd_damage); invulnerable_until = now + 300; break
                 if el_phase >= 4.5:
-                    blasters.clear()
-                    attack_phase = PHASE_BLUE_BONES; phase_start_ms = now
+                    blasters.clear(); attack_phase = PHASE_BLUE_BONES; phase_start_ms = now
                     bones.append({"rect": pygame.Rect(BATTLE_BOX.left - 200, heart_y - 15, 200, 30), "type": "blue", "vx": 250, "vy": 0})
                     bones.append({"rect": pygame.Rect(BATTLE_BOX.right, heart_y - 15, 200, 30), "type": "blue", "vx": -250, "vy": 0})
                     play_sound(snd_bone)
 
-            # === Фаза 6: Синие кости ===
+            # Фаза 6: Синие кости
             elif attack_phase == PHASE_BLUE_BONES:
                 keys = pygame.key.get_pressed()
                 dx, dy = 0, 0
@@ -817,49 +710,37 @@ while running:
                 if keys[pygame.K_DOWN]: dy += 1
                 heart_moving = (dx != 0 or dy != 0)
                 if dx and dy:
-                    l = (dx*dx+dy*dy) ** 0.5
-                    dx /= l; dy /= l
-                heart_x += dx * 180 * dt
-                heart_y += dy * 180 * dt
+                    l = (dx*dx+dy*dy) ** 0.5; dx /= l; dy /= l
+                heart_x += dx * 180 * dt; heart_y += dy * 180 * dt
                 heart_x = max(BATTLE_BOX.left + 12, min(BATTLE_BOX.right - 12, heart_x))
                 heart_y = max(BATTLE_BOX.top + 12, min(BATTLE_BOX.bottom - 12, heart_y))
-                for b in bones:
-                    b["rect"].x += b["vx"] * dt
+                for b in bones: b["rect"].x += b["vx"] * dt
                 hh = pygame.Rect(heart_x - 8, heart_y - 8, 16, 16)
                 inv = now < invulnerable_until
                 for b in bones:
                     if hh.colliderect(b["rect"]) and heart_moving and not inv:
-                        take_damage(); play_sound(snd_damage)
-                        invulnerable_until = now + 300
-                        break
+                        take_damage(); play_sound(snd_damage); invulnerable_until = now + 300; break
                 if el_phase >= 3.0:
-                    bones.clear()
-                    attack_phase = PHASE_DIALOG; phase_start_ms = now
-                    battle_dialog_visible = True
-                    battle_dialog_text = "ты жив?"
-                    sans_typed = 0; sans_typing_done = False
-                    sans_last_char_ms = now
+                    bones.clear(); attack_phase = PHASE_DIALOG; phase_start_ms = now
+                    battle_dialog_visible = True; battle_dialog_text = "ты жив?"
+                    sans_typed = 0; sans_typing_done = False; sans_last_char_ms = now
 
-            # === Фаза 7: Диалог «ты жив?» ===
+            # Фаза 7: Диалог
             elif attack_phase == PHASE_DIALOG:
                 if battle_dialog_visible:
                     if not sans_typing_done:
                         if now - sans_last_char_ms >= 50:
                             if sans_typed < len(battle_dialog_text):
-                                sans_typed += 1; sans_last_char_ms = now
-                                play_sound(snd_sans)
-                            else:
-                                sans_typing_done = True
+                                sans_typed += 1; sans_last_char_ms = now; play_sound(snd_sans)
+                            else: sans_typing_done = True
                     else:
                         if pygame.key.get_pressed()[pygame.K_z] or pygame.key.get_pressed()[pygame.K_RETURN]:
-                            battle_dialog_visible = False
-                            attack_phase = PHASE_READY; phase_start_ms = now
-                            buttons_unlocked = True
-                            heart_mode = "box"
+                            battle_dialog_visible = False; attack_phase = PHASE_READY; phase_start_ms = now
+                            buttons_unlocked = True; heart_mode = "box"
                             heart_x = BATTLE_BOX.centerx; heart_y = BATTLE_BOX.centery
                             if music_enabled: play_music('megalovania.mp3')
 
-            # === Фаза 8: Кнопки доступны ===
+            # Фаза 8: Готовность
             elif attack_phase == PHASE_READY:
                 keys = pygame.key.get_pressed()
                 if heart_mode == "box":
@@ -869,17 +750,15 @@ while running:
                     if keys[pygame.K_UP]: dy -= 1
                     if keys[pygame.K_DOWN]: dy += 1
                     if dx and dy:
-                        l = (dx*dx+dy*dy) ** 0.5
-                        dx /= l; dy /= l
-                    heart_x += dx * 180 * dt
-                    heart_y += dy * 180 * dt
+                        l = (dx*dx+dy*dy) ** 0.5; dx /= l; dy /= l
+                    heart_x += dx * 180 * dt; heart_y += dy * 180 * dt
                     heart_x = max(BATTLE_BOX.left + 12, min(BATTLE_BOX.right - 12, heart_x))
                     heart_y = max(BATTLE_BOX.top + 12, min(BATTLE_BOX.bottom - 12, heart_y))
                 elif heart_mode == "buttons":
                     if keys[pygame.K_LEFT]: selected_btn = max(0, selected_btn - 1)
                     if keys[pygame.K_RIGHT]: selected_btn = min(len(BUTTONS) - 1, selected_btn + 1)
 
-        # ---- Отрисовка боя ----
+        # Отрисовка боя
         cur_box = BATTLE_BOX_WIDE if attack_phase in (PHASE_WALL_RIGHT, PHASE_WALL_LEFT) else BATTLE_BOX
         pygame.draw.rect(screen, WHITE, cur_box, 3)
 
@@ -890,8 +769,7 @@ while running:
                 img = BONE_IMG.copy()
                 img = pygame.transform.scale(img, (b["rect"].width, b["rect"].height))
                 if b["type"] != "white":
-                    tint = pygame.Surface(img.get_size())
-                    tint.fill(col)
+                    tint = pygame.Surface(img.get_size()); tint.fill(col)
                     img.blit(tint, (0, 0), special_flags=pygame.BLEND_RGB_MULT)
                 screen.blit(img, b["rect"])
             else:
@@ -909,8 +787,7 @@ while running:
 
         blink = (now < invulnerable_until) and ((now // 60) % 2 == 0)
         if not blink:
-            if heart_mode == "box":
-                draw_heart(screen, int(heart_x), int(heart_y), HEART_SIZE)
+            if heart_mode == "box": draw_heart(screen, int(heart_x), int(heart_y), HEART_SIZE)
             else:
                 btn = BUTTONS[selected_btn]
                 draw_heart(screen, btn.centerx, btn.top - 22, HEART_SIZE)
@@ -947,21 +824,15 @@ while running:
             battle_alpha += 5
             if battle_alpha > 255: battle_alpha = 255
             ov = pygame.Surface((WIDTH, HEIGHT)); ov.fill(BLACK)
-            ov.set_alpha(255 - battle_alpha)
-            screen.blit(ov, (0, 0))
+            ov.set_alpha(255 - battle_alpha); screen.blit(ov, (0, 0))
 
-    # ---- GAME OVER ----
     elif state == STATE_GAMEOVER:
         el = (now - gameover_start_ms) / 1000.0
         if el >= 2.0:
-            reset_battle()
-            sans_use_alt = True
-            state = STATE_SANS
-            sans_start_ms = now; sans_alpha = 0
-            sans_box_visible = False; sans_line_index = 0
-            sans_typed = 0; sans_typing_done = False
-            sans_last_char_ms = 0
-            play_sound(snd_encounter)
+            reset_battle(); sans_use_alt = True; state = STATE_SANS
+            sans_start_ms = now; sans_alpha = 0; sans_box_visible = False
+            sans_line_index = 0; sans_typed = 0; sans_typing_done = False
+            sans_last_char_ms = 0; play_sound(snd_encounter)
 
     if show_fps:
         f = small_font.render(f"FPS: {int(clock.get_fps())}", True, GOLD)
