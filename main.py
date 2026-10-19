@@ -6,6 +6,15 @@ import json
 pygame.init()
 pygame.mixer.init()
 
+# ==== ФУНКЦИЯ ДЛЯ ПОИСКА ФАЙЛОВ В EXE ====
+def resource_path(relative_path):
+    """Ищет файлы внутри .exe и в обычной папке"""
+    try:
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_path, relative_path)
+
 WIDTH = 640
 HEIGHT = 480
 fullscreen = False
@@ -76,7 +85,7 @@ if os.path.exists(RESET_FLAG):
 # ===================== ЗАГРУЗКА =====================
 def load_image(path, size=None):
     try:
-        img = pygame.image.load(path)
+        img = pygame.image.load(resource_path(path))
         if size:
             img = pygame.transform.scale(img, size)
         return img
@@ -90,7 +99,7 @@ history_img = load_image('history.png', (500, 370))
 sans_img = load_image('sans-error.png', (320, 320))
 
 try:
-    textures = pygame.image.load('textures.png')
+    textures = pygame.image.load(resource_path('textures.png'))
     columns_img = textures.subsurface(pygame.Rect(240, 390, 160, 140))
     blob_img = textures.subsurface(pygame.Rect(400, 350, 170, 70))
 except:
@@ -98,7 +107,7 @@ except:
     blob_img = pygame.Surface((170, 70)); blob_img.fill(RED)
 
 try:
-    dialogs_sheet = pygame.image.load('undertale-dialogs.png')
+    dialogs_sheet = pygame.image.load(resource_path('undertale-dialogs.png'))
     dialog_box_small = dialogs_sheet.subsurface(pygame.Rect(15, 15, 105, 75))
     dialog_box = pygame.transform.scale(dialog_box_small, (580, 130))
     dialog_box_battle = pygame.transform.scale(dialog_box_small, (600, 130))
@@ -120,7 +129,7 @@ HEART_COORDS = {
 }
 HEART_IMAGES = {}
 try:
-    hs = pygame.image.load('hearts.png')
+    hs = pygame.image.load(resource_path('hearts.png'))
     for n, r in HEART_COORDS.items():
         try:
             p = hs.subsurface(pygame.Rect(r))
@@ -140,7 +149,7 @@ BUTTON_COORDS = {
 BUTTON_NAMES = ["FIGHT", "ACT", "ITEM", "MERCY"]
 BUTTON_IMAGES = {}
 try:
-    bs = pygame.image.load('battle-buttons.png')
+    bs = pygame.image.load(resource_path('battle-buttons.png'))
     for n, r in BUTTON_COORDS.items():
         try:
             p = bs.subsurface(pygame.Rect(r))
@@ -148,16 +157,14 @@ try:
         except: pass
 except: pass
 
-# --- Кости и бластеры из sans-battle.png (621x1003) ---
+# --- Кости и бластеры ---
 BONE_IMG = None
 BLASTER_FRAMES = []
 try:
-    sb = pygame.image.load('sans-battle.png')
-    # Вертикальная кость (белая длинная)
+    sb = pygame.image.load(resource_path('sans-battle.png'))
     try:
         BONE_IMG = sb.subsurface(pygame.Rect(270, 310, 25, 400))
     except: pass
-    # Гастер-бластер: 6 кадров внизу
     for i in range(6):
         try:
             f = sb.subsurface(pygame.Rect(i * 103, 935, 100, 65))
@@ -178,7 +185,7 @@ battle_dialog_rect = dialog_box_battle.get_rect(center=(cx, 390))
 
 # ===================== ШРИФТЫ =====================
 try:
-    fp = 'determinationmonorusbylyajk.otf'
+    fp = resource_path('determinationmonorusbylyajk.otf')
     font = pygame.font.Font(fp, 26)
     small_font = pygame.font.Font(fp, 16)
     big_font = pygame.font.Font(fp, 36)
@@ -187,13 +194,13 @@ except:
     font = pygame.font.Font(None, 32); small_font = pygame.font.Font(None, 22)
     big_font = pygame.font.Font(None, 40); battle_font = pygame.font.Font(None, 26)
 try:
-    sans_font = pygame.font.Font('ComicSans.ttf', 22)
+    sans_font = pygame.font.Font(resource_path('ComicSans.ttf'), 22)
 except:
     sans_font = pygame.font.Font(None, 24)
 
 # ===================== ЗВУКИ =====================
 def load_sound(path):
-    try: return pygame.mixer.Sound(path)
+    try: return pygame.mixer.Sound(resource_path(path))
     except: return None
 
 snd_logo = load_sound('logo_sound.mp3')
@@ -215,7 +222,7 @@ def play_sound(s):
 
 def play_music(path, loops=-1):
     try:
-        pygame.mixer.music.load(path); pygame.mixer.music.play(loops); return True
+        pygame.mixer.music.load(resource_path(path)); pygame.mixer.music.play(loops); return True
     except: return False
 
 def stop_music():
@@ -362,15 +369,12 @@ def draw_heart(surf, x, y, size, color=RED):
 def draw_hp_bar():
     x0 = 30; y0 = 225; w = 140; h = 16
     pygame.draw.rect(screen, WHITE, (x0, y0, w, h), 2)
-    # Жёлтая полоса HP
     hp_w = int(w * player_hp / player_max_hp)
     pygame.draw.rect(screen, YELLOW, (x0 + 2, y0 + 2, max(0, hp_w - 4), h - 4))
-    # Фиолетовая полоса KR (внутри HP полосы, но за её правым краем)
     if player_kr > 0:
         kr_w = int(w * player_kr / player_max_hp)
         kr_start = x0 + 2 + max(0, hp_w - 4)
         pygame.draw.rect(screen, PURPLE, (kr_start, y0 + 2, kr_w, h - 4))
-    # Текст
     txt = battle_font.render(f"{player_hp}/{player_max_hp}", True, WHITE)
     screen.blit(txt, (x0 + w + 10, y0 - 2))
 
@@ -413,7 +417,6 @@ while running:
             if state == STATE_LOGO:
                 if (event.key in (pygame.K_z, pygame.K_RETURN)) and show_press:
                     play_select()
-                    # Если есть смерти — сразу к Сансу
                     if SAVE.get("deaths", 0) > 0:
                         sans_use_alt = True
                         stop_all_sounds()
@@ -473,7 +476,6 @@ while running:
                     sans_line_index += 1
                     total = len(SANS_ALT) if sans_use_alt else len(SANS_LINES)
                     if sans_line_index >= total:
-                        # Начало боя
                         reset_battle()
                         state = STATE_BATTLE
                     else:
@@ -487,7 +489,6 @@ while running:
                         battle_dialog_visible = True
                         battle_dialog_text = f"Вы выбрали: {BUTTON_NAMES[selected_btn]}"
                         play_select()
-                # Переход к кнопкам (только в фазе READY)
                 if attack_phase == PHASE_READY:
                     if heart_mode == "box" and event.key == pygame.K_UP:
                         if heart_y <= BATTLE_BOX.top + 20:
@@ -498,7 +499,6 @@ while running:
 
             # ---- GAME OVER ----
             elif state == STATE_GAMEOVER:
-                # Ничего не делаем, автоматически перезапустится
                 pass
 
     # ===================== ОТРИСОВКА =====================
@@ -635,7 +635,6 @@ while running:
 
     # ---- БОЙ ----
     elif state == STATE_BATTLE:
-        # KR тикает
         if player_kr > 0:
             kr_timer += 1
             if player_kr >= 40: interval = 1
@@ -656,7 +655,6 @@ while running:
             state = STATE_GAMEOVER
             gameover_start_ms = now
         else:
-            # Обработка фаз
             el_phase = (now - phase_start_ms) / 1000.0
 
             # === Фаза 0: Вступление ===
@@ -668,7 +666,6 @@ while running:
 
             # === Фаза 1: Превращение + падение ===
             elif attack_phase == PHASE_TRANSFORM:
-                # Гравитация тянет вниз
                 heart_vy += heart_gravity * dt
                 keys = pygame.key.get_pressed()
                 if keys[pygame.K_UP] and heart_grounded:
@@ -686,7 +683,6 @@ while running:
                 if el_phase >= 1.5:
                     attack_phase = PHASE_JUMP; phase_start_ms = now
                     bones.clear()
-                    # Создаём 3 кости снизу
                     for i in range(3):
                         b = pygame.Rect(BATTLE_BOX.left + 60 + i * 150, BATTLE_BOX.bottom + 30, 20, 400)
                         bones.append({"rect": b, "type": "white", "vx": 0, "vy": -120})
@@ -708,10 +704,8 @@ while running:
                 if heart_y <= BATTLE_BOX.top + 12:
                     heart_y = BATTLE_BOX.top + 12
                     if heart_vy < 0: heart_vy = 0
-                # Двигаем кости вверх
                 for b in bones:
                     b["rect"].y += b["vy"] * dt
-                # Столкновения
                 hh = pygame.Rect(heart_x - 8, heart_y - 8, 16, 16)
                 inv = now < invulnerable_until
                 for b in bones:
@@ -723,7 +717,6 @@ while running:
                 if el_phase >= 3.0:
                     bones.clear()
                     attack_phase = PHASE_WALL_RIGHT; phase_start_ms = now
-                    # Волна костей вправо
                     for i in range(4):
                         b = pygame.Rect(BATTLE_BOX_WIDE.left - 100 - i * 200, BATTLE_BOX_WIDE.top + 5, 180, 40)
                         bones.append({"rect": b, "type": "white", "vx": 300, "vy": 0})
@@ -733,7 +726,6 @@ while running:
 
             # === Фаза 3: Стена костей вправо ===
             elif attack_phase == PHASE_WALL_RIGHT:
-                # Гравитация тянет вправо
                 heart_x += 180 * dt
                 heart_x = min(heart_x, BATTLE_BOX_WIDE.right - 15)
                 for b in bones:
@@ -773,7 +765,6 @@ while running:
                     current_heart = "red"
                     heart_x = BATTLE_BOX.centerx; heart_y = BATTLE_BOX.centery
                     play_sound(snd_ding)
-                    # Формация 1: 2 бластера сверху слева/справа
                     blasters.append({"x": BATTLE_BOX.left + 60, "y": BATTLE_BOX.top - 60, "frame": 0, "timer": 0, "fired": False, "vx": 0, "vy": 200})
                     blasters.append({"x": BATTLE_BOX.right - 60, "y": BATTLE_BOX.top - 60, "frame": 0, "timer": 0, "fired": False, "vx": 0, "vy": 200})
                     play_sound(snd_blaster)
@@ -793,22 +784,17 @@ while running:
                 heart_y += dy * 180 * dt
                 heart_x = max(BATTLE_BOX.left + 12, min(BATTLE_BOX.right - 12, heart_x))
                 heart_y = max(BATTLE_BOX.top + 12, min(BATTLE_BOX.bottom - 12, heart_y))
-                # Анимация бластеров
                 hh = pygame.Rect(heart_x - 8, heart_y - 8, 16, 16)
                 inv = now < invulnerable_until
                 for bl in blasters:
                     bl["timer"] += 1
                     if bl["frame"] < 5 and bl["timer"] % 4 == 0:
                         bl["frame"] += 1
-                    # Когда дошли до последнего кадра — стреляем
                     if bl["frame"] >= 5 and not bl["fired"]:
                         bl["fired"] = True
                         play_sound(snd_blaster)
-                        # Луч идёт вниз от бластера (упрощённо: проверяем вертикальную зону)
-                # Проверка попадания луча
                 for bl in blasters:
                     if bl["fired"]:
-                        # Луч вертикальный от бластера вниз на всю высоту бокса
                         laser_rect = pygame.Rect(bl["x"] - 15, bl["y"], 30, BATTLE_BOX.height + 100)
                         if hh.colliderect(laser_rect) and not inv:
                             take_damage(); play_sound(snd_damage)
@@ -817,7 +803,6 @@ while running:
                 if el_phase >= 4.5:
                     blasters.clear()
                     attack_phase = PHASE_BLUE_BONES; phase_start_ms = now
-                    # Две синие кости — справа и слева
                     bones.append({"rect": pygame.Rect(BATTLE_BOX.left - 200, heart_y - 15, 200, 30), "type": "blue", "vx": 250, "vy": 0})
                     bones.append({"rect": pygame.Rect(BATTLE_BOX.right, heart_y - 15, 200, 30), "type": "blue", "vx": -250, "vy": 0})
                     play_sound(snd_bone)
@@ -895,18 +880,15 @@ while running:
                     if keys[pygame.K_RIGHT]: selected_btn = min(len(BUTTONS) - 1, selected_btn + 1)
 
         # ---- Отрисовка боя ----
-        # Определяем бокс
         cur_box = BATTLE_BOX_WIDE if attack_phase in (PHASE_WALL_RIGHT, PHASE_WALL_LEFT) else BATTLE_BOX
         pygame.draw.rect(screen, WHITE, cur_box, 3)
 
-        # Рисуем кости (с обрезкой по боксу)
         screen.set_clip(cur_box)
         for b in bones:
             col = WHITE if b["type"] == "white" else (BLUE if b["type"] == "blue" else ORANGE)
             if BONE_IMG:
                 img = BONE_IMG.copy()
                 img = pygame.transform.scale(img, (b["rect"].width, b["rect"].height))
-                # Тинт для цвета
                 if b["type"] != "white":
                     tint = pygame.Surface(img.get_size())
                     tint.fill(col)
@@ -916,18 +898,15 @@ while running:
                 pygame.draw.rect(screen, col, b["rect"])
         screen.set_clip(None)
 
-        # Рисуем бластеры
         for bl in blasters:
             if BLASTER_FRAMES:
                 fi = min(bl["frame"], len(BLASTER_FRAMES) - 1)
                 screen.blit(BLASTER_FRAMES[fi], BLASTER_FRAMES[fi].get_rect(center=(bl["x"], bl["y"])))
             else:
                 pygame.draw.circle(screen, WHITE, (int(bl["x"]), int(bl["y"])), 25)
-            # Луч
             if bl["fired"]:
                 pygame.draw.rect(screen, (255, 255, 200), (bl["x"] - 15, bl["y"], 30, BATTLE_BOX.height + 100))
 
-        # Рисуем сердечко
         blink = (now < invulnerable_until) and ((now // 60) % 2 == 0)
         if not blink:
             if heart_mode == "box":
@@ -936,7 +915,6 @@ while running:
                 btn = BUTTONS[selected_btn]
                 draw_heart(screen, btn.centerx, btn.top - 22, HEART_SIZE)
 
-        # Кнопки
         for i, br in enumerate(BUTTONS):
             hov = (heart_mode == "buttons" and selected_btn == i and buttons_unlocked)
             img = BUTTON_IMAGES.get(BUTTON_NAMES[i])
@@ -949,12 +927,10 @@ while running:
                 t = battle_font.render(BUTTON_NAMES[i], True, col)
                 screen.blit(t, t.get_rect(center=br.center))
 
-        # Инфо игрока
         screen.blit(battle_font.render(player_name, True, WHITE), (30, 200))
         screen.blit(battle_font.render(player_lv, True, WHITE), (120, 200))
         draw_hp_bar()
 
-        # Диалог
         if battle_dialog_visible:
             screen.blit(dialog_box_battle, battle_dialog_rect)
             if attack_phase == PHASE_DIALOG:
@@ -963,12 +939,10 @@ while running:
                 txt = battle_font.render(battle_dialog_text, True, WHITE)
             screen.blit(txt, (battle_dialog_rect.left + 30, battle_dialog_rect.top + 50))
 
-        # Подсказка
         if attack_phase == PHASE_READY and heart_mode == "box" and not battle_dialog_visible:
             h = small_font.render("↑ - к кнопкам", True, (150, 150, 150))
             screen.blit(h, (cx - 60, BATTLE_BOX.bottom + 5))
 
-        # Fade-in боя
         if battle_alpha < 255:
             battle_alpha += 5
             if battle_alpha > 255: battle_alpha = 255
@@ -979,9 +953,7 @@ while running:
     # ---- GAME OVER ----
     elif state == STATE_GAMEOVER:
         el = (now - gameover_start_ms) / 1000.0
-        # Ничего не рисуем (чёрный экран), через 2 сек — перезапуск
         if el >= 2.0:
-            # Перезапуск боя
             reset_battle()
             sans_use_alt = True
             state = STATE_SANS
@@ -991,7 +963,6 @@ while running:
             sans_last_char_ms = 0
             play_sound(snd_encounter)
 
-    # FPS
     if show_fps:
         f = small_font.render(f"FPS: {int(clock.get_fps())}", True, GOLD)
         screen.blit(f, (WIDTH - 100, 10))
