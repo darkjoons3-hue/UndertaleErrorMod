@@ -7,10 +7,8 @@ pygame.init()
 pygame.mixer.init()
 
 def resource_path(relative_path):
-    try:
-        base_path = sys._MEIPASS
-    except Exception:
-        base_path = os.path.dirname(os.path.abspath(__file__))
+    try: base_path = sys._MEIPASS
+    except Exception: base_path = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_path, relative_path)
 
 WIDTH = 640
@@ -21,18 +19,11 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("UndertaleErrorMod")
 pygame.mouse.set_visible(False)
 
-BLACK = (0, 0, 0)
-WHITE = (255, 255, 255)
-RED = (255, 0, 0)
-YELLOW = (255, 255, 0)
-GOLD = (255, 215, 0)
-ORANGE = (255, 130, 0)
-BLUE = (60, 60, 255)
-PURPLE = (150, 0, 200)
-MAGENTA = (255, 0, 255)
+BLACK = (0, 0, 0); WHITE = (255, 255, 255); RED = (255, 0, 0)
+YELLOW = (255, 255, 0); GOLD = (255, 215, 0); ORANGE = (255, 130, 0)
+BLUE = (60, 60, 255); PURPLE = (150, 0, 200); MAGENTA = (255, 0, 255)
 
-sound_enabled = True
-music_enabled = True
+sound_enabled = True; music_enabled = True
 
 # ===================== СОХРАНЕНИЕ =====================
 APPDATA = os.getenv('APPDATA') or os.path.expanduser('~')
@@ -58,23 +49,41 @@ def reset_save():
 SAVE = load_save()
 
 # ===================== ЗАГРУЗКА =====================
-def load_image(path, size=None):
+def load_image(path, size=None, colorkey=None):
     try:
         img = pygame.image.load(resource_path(path)).convert_alpha()
+        if colorkey: img.set_colorkey(colorkey)
         if size: img = pygame.transform.scale(img, size)
         return img
     except:
         s = pygame.Surface(size if size else (100, 100)); s.fill(RED); return s
 
-logo = load_image('logo.png', (400, 200))
-history_img = load_image('history.png', (500, 370))
-sans_img = load_image('sans-error.png', (180, 180))
+# --- ФИКС ЛОГОТИПА (Сохранение пропорций) ---
+logo_raw = load_image('logo.png')
+if logo_raw.get_width() > 0:
+    w, h = logo_raw.get_size()
+    new_w = 400
+    new_h = int(h * (new_w / w))
+    logo = pygame.transform.scale(logo_raw, (new_w, new_h))
+else:
+    logo = load_image('logo.png', (400, 200))
 
-# Окно диалога (рисуем)
-dialog_box = pygame.Surface((580, 130)); dialog_box.fill(BLACK)
-pygame.draw.rect(dialog_box, WHITE, (0, 0, 580, 130), 4)
-dialog_box_battle = pygame.Surface((600, 130)); dialog_box_battle.fill(BLACK)
-pygame.draw.rect(dialog_box_battle, WHITE, (0, 0, 600, 130), 4)
+history_img = load_image('history.png', (500, 370))
+sans_img = load_image('sans-error.png', (180, 180), MAGENTA)
+
+# --- ФИКС ОКНА ДИАЛОГА (Берем из спрайта и убираем фиолетовый фон) ---
+try:
+    dialogs_sheet = load_image('undertale-dialogs.png')
+    # Вырезаем черный прямоугольник с белой рамкой
+    dialog_box = dialogs_sheet.subsurface(pygame.Rect(230, 230, 290, 75))
+    dialog_box = pygame.transform.scale(dialog_box, (580, 130))
+    dialog_box_battle = pygame.transform.scale(dialog_box, (600, 130))
+except:
+    # Если не получится, рисуем кодом
+    dialog_box = pygame.Surface((580, 130)); dialog_box.fill(BLACK)
+    pygame.draw.rect(dialog_box, WHITE, (0, 0, 580, 130), 4)
+    dialog_box_battle = pygame.Surface((600, 130)); dialog_box_battle.fill(BLACK)
+    pygame.draw.rect(dialog_box_battle, WHITE, (0, 0, 600, 130), 4)
 
 # ===================== ПОЗИЦИИ =====================
 cx = WIDTH // 2; cy = HEIGHT // 2
@@ -186,7 +195,6 @@ def take_damage():
     player_hp -= 1
     player_kr = min(player_max_kr, player_kr + 3)
 
-# --- РИСУЕМ СЕРДЕЧКО КОДОМ ---
 def draw_heart(surf, x, y, size, color=RED):
     r = size // 4
     pygame.draw.circle(surf, color, (int(x - r), int(y - r)), r)
@@ -386,6 +394,11 @@ while running:
             screen.blit(txt, (dialog_rect.left + 30, dialog_rect.top + 45))
 
     elif state == STATE_BATTLE:
+        # Отрисовка Санса на заднем плане боя (он теперь не исчезает)
+        sans_battle_alpha = 100 # Полупрозрачный
+        sc = sans_img.copy(); sc.set_alpha(sans_battle_alpha)
+        screen.blit(sc, sans_rect)
+
         if player_kr > 0:
             kr_timer += 1
             if player_kr >= 40: interval = 1
@@ -522,30 +535,26 @@ while running:
                     if keys[pygame.K_LEFT]: selected_btn = max(0, selected_btn - 1)
                     if keys[pygame.K_RIGHT]: selected_btn = min(len(BUTTONS) - 1, selected_btn + 1)
 
-        # --- ОТРИСОВКА БОЯ ---
+        # Отрисовка боя
         cur_box = BATTLE_BOX_WIDE if attack_phase in (PHASE_WALL_RIGHT, PHASE_WALL_LEFT) else BATTLE_BOX
         pygame.draw.rect(screen, WHITE, cur_box, 3)
 
-        # Рисуем кости (ПРОСТО БЕЛЫЕ ПРЯМОУГОЛЬНИКИ)
         screen.set_clip(cur_box)
         for b in bones:
             col = WHITE if b["type"] == "white" else (BLUE if b["type"] == "blue" else ORANGE)
             pygame.draw.rect(screen, col, b["rect"])
         screen.set_clip(None)
 
-        # Рисуем бластеры (ПРОСТО КРУГИ)
         for bl in blasters:
             pygame.draw.circle(screen, WHITE, (int(bl["x"]), int(bl["y"])), 25)
             if bl["fired"]:
                 pygame.draw.rect(screen, (255, 255, 200), (bl["x"] - 15, bl["y"], 30, BATTLE_BOX.height + 100))
 
-        # Рисуем сердечко (ФИГУРОЙ)
         blink = (now < invulnerable_until) and ((now // 60) % 2 == 0)
         if not blink:
             if heart_mode == "box": draw_heart(screen, int(heart_x), int(heart_y), 24)
             else: draw_heart(screen, BUTTONS[selected_btn].centerx, BUTTONS[selected_btn].top - 22, 24)
 
-        # Рисуем кнопки (КРАСИВЫМИ РАМКАМИ)
         for i, br in enumerate(BUTTONS):
             hov = (heart_mode == "buttons" and selected_btn == i and buttons_unlocked)
             col = YELLOW if hov else ORANGE
@@ -553,7 +562,6 @@ while running:
             t = battle_font.render(BUTTON_NAMES[i], True, col)
             screen.blit(t, t.get_rect(center=br.center))
 
-        # Инфо игрока
         screen.blit(battle_font.render(player_name, True, WHITE), (40, 200))
         screen.blit(battle_font.render(player_lv, True, WHITE), (160, 200))
         draw_hp_bar()
